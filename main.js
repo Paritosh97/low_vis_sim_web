@@ -20,7 +20,7 @@ let texture;
 let shaderPasses = {};
 
 // Effect Order and State
-const effectOrder = [
+let effectOrder = [
   "lightDegradation",
   "visualFieldLoss",
   "rotationDistortion",
@@ -137,10 +137,14 @@ async function buildUI() {
   const container = document.getElementById('effectsContainer');
   container.innerHTML = '';
 
+  // Get list of enabled effects in current order
+  const enabledEffects = effectOrder.filter(name => effectsState[name].enabled);
+  
   for (const name of effectOrder) {
     const effect = effectsState[name];
     const div = document.createElement('div');
     div.className = 'effect';
+    div.dataset.effectName = name;
 
     // Create checkbox and label
     const checkbox = document.createElement('input');
@@ -156,6 +160,39 @@ async function buildUI() {
     header.className = 'effect-header';
     header.appendChild(checkbox);
     header.appendChild(label);
+
+    // Add move up/down buttons if effect is enabled
+    if (effect.enabled) {
+      const moveControls = document.createElement('div');
+      moveControls.className = 'move-controls';
+
+      // Up button (not shown for first enabled effect)
+      if (enabledEffects.indexOf(name) > 0) {
+        const upBtn = document.createElement('button');
+        upBtn.innerHTML = '↑';
+        upBtn.className = 'move-btn up';
+        upBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          moveEffectUp(name);
+        });
+        moveControls.appendChild(upBtn);
+      }
+
+      // Down button (not shown for last enabled effect)
+      if (enabledEffects.indexOf(name) < enabledEffects.length - 1) {
+        const downBtn = document.createElement('button');
+        downBtn.innerHTML = '↓';
+        downBtn.className = 'move-btn down';
+        downBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          moveEffectDown(name);
+        });
+        moveControls.appendChild(downBtn);
+      }
+
+      header.appendChild(moveControls);
+    }
+
     div.appendChild(header);
 
     // Create parameters container
@@ -302,8 +339,49 @@ async function buildUI() {
       effect.enabled = checkbox.checked;
       paramsContainer.style.maxHeight = effect.enabled ? '500px' : '0';
       paramsContainer.style.paddingTop = effect.enabled ? '10px' : '0';
-      updateEffect(name);
+      
+      // Rebuild UI to update move buttons
+      buildUI();
+      setupPostProcessing();
     });
+  }
+}
+
+// Move an effect up in the order
+function moveEffectUp(name) {
+  const enabledEffects = effectOrder.filter(n => effectsState[n].enabled);
+  const currentIndex = enabledEffects.indexOf(name);
+  
+  if (currentIndex > 0) {
+    // Swap in the full effectOrder array
+    const allIndex = effectOrder.indexOf(name);
+    const prevIndex = effectOrder.indexOf(enabledEffects[currentIndex - 1]);
+    
+    // Swap the elements
+    [effectOrder[allIndex], effectOrder[prevIndex]] = [effectOrder[prevIndex], effectOrder[allIndex]];
+    
+    // Rebuild UI and processing pipeline
+    buildUI();
+    setupPostProcessing();
+  }
+}
+
+// Move an effect down in the order
+function moveEffectDown(name) {
+  const enabledEffects = effectOrder.filter(n => effectsState[n].enabled);
+  const currentIndex = enabledEffects.indexOf(name);
+  
+  if (currentIndex < enabledEffects.length - 1) {
+    // Swap in the full effectOrder array
+    const allIndex = effectOrder.indexOf(name);
+    const nextIndex = effectOrder.indexOf(enabledEffects[currentIndex + 1]);
+    
+    // Swap the elements
+    [effectOrder[allIndex], effectOrder[nextIndex]] = [effectOrder[nextIndex], effectOrder[allIndex]];
+    
+    // Rebuild UI and processing pipeline
+    buildUI();
+    setupPostProcessing();
   }
 }
 
@@ -340,7 +418,7 @@ async function setupPostProcessing() {
   // Add render pass
   composer.addPass(new RenderPass(scene, camera));
 
-  // Add enabled effects
+  // Add enabled effects in current order
   for (const name of effectOrder) {
     const effect = effectsState[name];
     if (effect.enabled) {
@@ -482,4 +560,4 @@ function setupEventListeners() {
 }
 
 // Initialize the application
-init();
+init(); 
