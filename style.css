@@ -1,0 +1,148 @@
+/* === Reset === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* === Body + Canvas === */
+body {
+  margin: 0;
+  background-color: #121212;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 0;
+}
+
+/* === UI Panel === */
+#ui {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: #1e1e1e;
+  padding: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+  max-height: 95vh;
+  width: 340px;
+  overflow-y: auto;
+  z-index: 10;
+  scrollbar-width: thin;
+  scrollbar-color: #555 #1e1e1e;
+}
+#ui::-webkit-scrollbar {
+  width: 6px;
+}
+#ui::-webkit-scrollbar-thumb {
+  background-color: #555;
+  border-radius: 4px;
+}
+
+/* === Inputs === */
+#imageLoader,
+#exportBtn,
+#importConfig {
+  width: 100%;
+  margin-bottom: 0.6rem;
+  background: #2a2a2a;
+  color: #ddd;
+  border: 1px solid #444;
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#exportBtn {
+  margin-top: 0.5rem;
+}
+#importConfig {
+  margin-top: 0.3rem;
+}
+#imageLoader:hover,
+#exportBtn:hover,
+#importConfig:hover {
+  background: #383838;
+}
+
+/* === Import Button Labels (Now Above the Inputs) === */
+#imageLoader + label,
+#importConfig + label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 1rem;
+  color: #ccc;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* === Each Effect Box === */
+.effect {
+  background: #2b2b2b;
+  padding: 0.7rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  border: 1px solid #3c3c3c;
+}
+.effect-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.effect-header label {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+.effect-header input[type="checkbox"] {
+  accent-color: #00bcd4;
+}
+
+/* === Effect Buttons === */
+.effect-controls {
+  display: flex;
+  gap: 4px;
+}
+.effect-controls button {
+  background: #3a3a3a;
+  border: none;
+  color: #ccc;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.effect-controls button:hover {
+  background: #555;
+}
+.effect-controls button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* === Sliders === */
+.effect input[type="range"] {
+  width: 100%;
+  margin-top: 0.3rem;
+  cursor: pointer;
+  background: transparent;
+}
+.effect input[type="range"]::-webkit-slider-thumb {
+  background: #00bcd4;
+  border: none;
+}
+.effect input[type="range"]::-moz-range-thumb {
+  background: #00bcd4;
+  border: none;
+}

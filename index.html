@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Low Vision Simulator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="ui">
+    <!-- Input for Image -->
+    <div class="input-group">
+      <label for="imageLoader">Import Image</label>
+      <input type="file" id="imageLoader" accept="image/*" />
+    </div>
+  
+    <!-- Input for JSON Configuration -->
+    <div class="input-group">
+      <label for="importConfig">Import JSON</label>
+      <input type="file" id="importConfig" />
+    </div>
+  
+    <!-- Export Configuration Button -->
+    <button id="exportBtn">Export JSON</button>
+  
+    <!-- Effect UI Container -->
+    <div id="effectsContainer"></div>
+  </div>
+  
+  <canvas id="threeCanvas"></canvas>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
