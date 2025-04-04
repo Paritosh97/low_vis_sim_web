@@ -96,6 +96,7 @@ canvas {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.5rem;
+  cursor: pointer;
 }
 .effect-header label {
   font-weight: bold;
@@ -106,6 +107,36 @@ canvas {
 }
 .effect-header input[type="checkbox"] {
   accent-color: #00bcd4;
+}
+
+/* === Dropdown for Parameters === */
+.effect-params {
+  display: none;
+  margin-top: 1rem;
+  padding-left: 1rem;
+  padding-top: 0.5rem;
+}
+
+/* === Param Controls === */
+.param-control {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+.param-control label {
+  margin-right: 0.5rem;
+  color: #ccc;
+  font-size: 0.9rem;
+}
+.param-control input {
+  width: 100%;
+  margin-right: 0.5rem;
+  background: #2a2a2a;
+  color: #ddd;
+  border: 1px solid #444;
+  padding: 6px;
+  border-radius: 5px;
+  font-size: 0.9rem;
 }
 
 /* === Effect Buttons === */
@@ -131,18 +162,14 @@ canvas {
   cursor: default;
 }
 
-/* === Sliders === */
-.effect input[type="range"] {
-  width: 100%;
-  margin-top: 0.3rem;
-  cursor: pointer;
-  background: transparent;
+.params-container {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+  padding-top: 0;
 }
-.effect input[type="range"]::-webkit-slider-thumb {
-  background: #00bcd4;
-  border: none;
-}
-.effect input[type="range"]::-moz-range-thumb {
-  background: #00bcd4;
-  border: none;
+
+.effect input[type="checkbox"]:checked ~ .params-container {
+  max-height: 500px; /* Adjust based on your content */
+  padding-top: 10px;
 }
