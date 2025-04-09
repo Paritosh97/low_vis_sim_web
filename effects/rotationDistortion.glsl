@@ -3,11 +3,9 @@ precision highp float;
 uniform sampler2D uTexture;
 uniform vec2 uResolution;
 
-const int NUM_KERNELS = 3;
-
-uniform vec2 uCenters[NUM_KERNELS];
-uniform float uSigmas[NUM_KERNELS];
-uniform float uWeights[NUM_KERNELS];
+uniform vec2 uCenters[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
+uniform float uSigmas[3]; // min: 0.001 max: 1.0 default: 0.5
+uniform float uWeights[3]; // min: 0.0 max: 1.0 default: 0.5
 
 varying vec2 vUv;
 
@@ -31,7 +29,7 @@ void main() {
 
     vec2 rotatedP = p;
 
-    for (int i = 0; i < NUM_KERNELS; ++i) {
+    for (int i = 0; i < 3; ++i) {
         vec2 center = uCenters[i];
         float sigma = uSigmas[i];
         float weight = uWeights[i];

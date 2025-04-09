@@ -56,58 +56,79 @@ async function initializeAllEffects() {
   }
 }
 
-// Parse uniforms with handling for static arrays
-function parseShaderUniforms(shaderCode) {
-  // Regular expression to match uniform declarations in GLSL
-  const uniformRegex = /uniform\s+(\w+)\s+(\w+)(\[\d+\])?\s*;\s*\/\/\s*(?:min:\s*\(([^)]+)\))?.*?(?:max:\s*\(([^)]+)\))?.*?(?:default:\s*\(([^)]+)\))?/g;
+// Helper function to parse numbers from a string
+function parseNumbers(str) {
+  return str?.match(/[\d.\-]+/g)?.map(Number);
+}
 
+// Function to handle array size and adjust min, max, default values accordingly
+function handleArrayValues(isArray, arrayLength, min, max, defaultValue) {
+  let parsedMin = min.length === 1 ? Array(arrayLength).fill(min[0]) : min;
+  let parsedMax = max.length === 1 ? Array(arrayLength).fill(max[0]) : max;
+  
+  // Ensure the default values match the array length
+  let parsedDefault = defaultValue.length < arrayLength
+    ? Array(arrayLength).fill(defaultValue[0])
+    : defaultValue;
+
+  return { parsedMin, parsedMax, parsedDefault };
+}
+
+// Function to parse a uniform declaration and extract min, max, default values
+function parseUniformDeclaration(match) {
+  const [_, type, name, isArray, min, max, defaultValue] = match;
+  const arrayLength = isArray ? parseInt(isArray.match(/\d+/)?.[0], 10) : 0;
+  
+  const parsedMin = min ? parseNumbers(min) : [];
+  const parsedMax = max ? parseNumbers(max) : [];
+  const parsedDefault = defaultValue ? parseNumbers(defaultValue) : [];
+
+  // If it's an array, handle the size of min, max, and default values
+  let finalParsedMin = parsedMin;
+  let finalParsedMax = parsedMax;
+  let finalParsedDefault = parsedDefault;
+
+  if (isArray) {
+    ({ parsedMin: finalParsedMin, parsedMax: finalParsedMax, parsedDefault: finalParsedDefault } = 
+      handleArrayValues(isArray, arrayLength, parsedMin, parsedMax, parsedDefault));
+  }
+
+  return { type, name, arrayLength, finalParsedMin, finalParsedMax, finalParsedDefault };
+}
+
+function parseShaderUniforms(shaderCode) {
+  const uniformRegex = /uniform\s+(\w+)\s+(\w+)(\[\s*(\d+)\s*\])?\s*;\s*\/\/\s*(?:min:\s*\(([^)]+)\))?.*?(?:max:\s*\(([^)]+)\))?.*?(?:default:\s*\(([^)]+)\))?/g;
   const uniforms = {};
   let match;
 
   // Iterate over all matches of the regex in the shader code
   while ((match = uniformRegex.exec(shaderCode)) !== null) {
-    const [_, type, name, isArray, min, max, defaultValue] = match;
+    // Debugging output for every match
+    console.log("Match found:", match);
 
-    // Helper function to parse numbers from a string
-    const parseNumbers = str => str?.match(/[\d.\-]+/g)?.map(Number);
+    // Parse the uniform declaration
+    const { type, name, arrayLength, finalParsedMin, finalParsedMax, finalParsedDefault } = parseUniformDeclaration(match);
 
-    // Parse min, max, and default values from the shader comments
-    let parsedMin = min ? parseNumbers(min) : [];
-    let parsedMax = max ? parseNumbers(max) : [];
-    let parsedDefault = defaultValue ? parseNumbers(defaultValue) : [];
-
-    let arrayLength = 0;
-
-    if (isArray) {
-      // Extract the size of the array (e.g., uKernels[16])
-      arrayLength = parseInt(isArray.match(/\d+/)[0], 10);
-
-      // Ensure the min, max, and default values are correctly sized
-      parsedMin = parsedMin.length === 1 ? Array(arrayLength).fill(parsedMin[0]) : parsedMin;
-      parsedMax = parsedMax.length === 1 ? Array(arrayLength).fill(parsedMax[0]) : parsedMax;
-
-      // If default values are not enough, expand them to match the array length
-      if (parsedDefault.length < arrayLength) {
-        parsedDefault = Array(arrayLength).fill(parsedDefault[0]);
-      }
-
-      // Log the array length and default values for debugging
-      console.log(`Array ${name} length:`, arrayLength);
-      console.log(`Default values for ${name}:`, parsedDefault);
-    }
+    // Parse the min/max/defaults if they are missing
+    const min = finalParsedMin || (type === 'float' || type === 'int' ? -Infinity : 0);
+    const max = finalParsedMax || (type === 'float' || type === 'int' ? Infinity : 1);
+    const defaultValue = finalParsedDefault !== undefined ? finalParsedDefault : (type === 'float' || type === 'int' ? 0 : false); 
 
     // Store the parsed uniform information
     uniforms[name] = {
       type,
-      array: !!isArray,
+      array: !!arrayLength,
       arrayLength,
-      defaultValue: parsedDefault,
-      value: parsedDefault,
-      min: parsedMin,
-      max: parsedMax,
-      step: 0.01, // Default step size for UI controls
+      defaultValue,
+      value: defaultValue,  // Default value is set as initial value
+      min,
+      max,
+      step: 0.01,  // Default step size for UI controls
     };
   }
+
+  // Debugging output for the final parsed uniforms
+  console.log("Parsed uniforms:", uniforms);
 
   return uniforms;
 }
@@ -125,7 +146,7 @@ async function initializeEffectState(name) {
     const params = {};
     Object.keys(uniforms).forEach(uniform => {
       if (uniform !== 'intensity') {
-        params[uniform] = uniforms[uniform].defaultValue;
+      params[uniform] = uniforms[uniform].defaultValue;
       }
     });
 
@@ -146,298 +167,307 @@ async function initializeEffectState(name) {
   }
 }
 
-// Helper function to create a checkbox for boolean type uniforms
-function createCheckboxControl(name, value, onChange) {
-  const container = document.createElement('div');
-  container.className = 'param-control';
-
-  const label = document.createElement('label');
-  label.textContent = name;
-  container.appendChild(label);
-
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.checked = value;
-
-  checkbox.addEventListener('change', () => {
-    const newValue = checkbox.checked;
-    onChange(newValue);
-  });
-
-  container.appendChild(checkbox);
-
-  return container;
-}
-
-
-function createSliderControl(name, value, min, max, step, onInput, onChange) {
-  const container = document.createElement('div');
-  container.className = 'param-control';
-
-  const label = document.createElement('label');
-  label.textContent = name;
-  container.appendChild(label);
-
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.min = min;
-  slider.max = max;
-  slider.step = step;
-  slider.value = value;
-
-  const valueInput = document.createElement('input');
-  valueInput.type = 'number';
-  valueInput.min = min;
-  valueInput.max = max;
-  valueInput.step = step;
-  valueInput.value = value;
-
-  slider.addEventListener('input', () => {
-    const newValue = parseFloat(slider.value);
-    valueInput.value = newValue;
-    onInput(newValue);
-  });
-
-  valueInput.addEventListener('input', () => {
-    const newValue = parseFloat(valueInput.value);
-    slider.value = newValue;
-    onChange(newValue);
-  });
-
-  container.appendChild(slider);
-  container.appendChild(valueInput);
-
-  return container;
-}
-
-function createArrayControl(name, value, min, max, step) {
-  const container = document.createElement('div');
-  container.className = 'param-control';
-
-  // Dropdown to select the index of the array
-  const selectContainer = document.createElement('div');
-  const selectLabel = document.createElement('span');
-  selectLabel.textContent = `Select Element of ${name}:`;
-  selectContainer.appendChild(selectLabel);
-
-  const selectElement = document.createElement('select');
-  const arrayLength = value.length;
-  
-  // Populate dropdown with the length of the array
-  for (let i = 0; i < arrayLength; i++) {
-    const option = document.createElement('option');
-    option.value = i;
-    option.textContent = `Element ${i}`;
-    selectElement.appendChild(option);
-  }
-
-  // Initially, set the selected element index to the first element
-  let selectedElementIndex = 0;
-  const slidersContainer = createVecControl(name, value[selectedElementIndex], min, max, step, 4); // 4 for vec4
-
-  // Add change event listener for the dropdown to update sliders based on selected element
-  selectElement.addEventListener('change', (e) => {
-    selectedElementIndex = parseInt(e.target.value);
-    const selectedElement = value[selectedElementIndex];
-    // Update the sliders for the selected vec4 element
-    updateSliders(slidersContainer, selectedElement, min, max, step);
-  });
-
-  container.appendChild(selectContainer);
-  container.appendChild(selectElement);
-  container.appendChild(slidersContainer);
-
-  return container;
-}
-
-function updateSliders(slidersContainer, value, min, max, step) {
-  const sliders = slidersContainer.querySelectorAll('.channel-control input[type="range"]');
-  const valueInputs = slidersContainer.querySelectorAll('.channel-control input[type="number"]');
-
-  // Update sliders and inputs based on the new value
-  value.forEach((val, index) => {
-    sliders[index].value = val;
-    valueInputs[index].value = val;
-
-    sliders[index].min = min;
-    sliders[index].max = max;
-    sliders[index].step = step;
-
-    valueInputs[index].min = min;
-    valueInputs[index].max = max;
-    valueInputs[index].step = step;
-  });
-}
-
-
-function createVecControl(name, value, min, max, step, dimension) {
-  const container = document.createElement('div');
-  container.className = 'param-control';
-
-  // Create sliders for the components of the vector
-  for (let i = 0; i < dimension; i++) {
-    const channelContainer = document.createElement('div');
-    channelContainer.className = 'channel-control';
-
-    const channelLabel = document.createElement('span');
-    channelLabel.textContent = `${['X', 'Y', 'Z', 'W'][i]}`;  // X, Y, Z, W for each component
-    channelContainer.appendChild(channelLabel);
-
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = min;
-    slider.max = max;
-    slider.step = step;
-    slider.value = value ? value[i] : 0;
-
-    const valueInput = document.createElement('input');
-    valueInput.type = 'number';
-    valueInput.min = min;
-    valueInput.max = max;
-    valueInput.step = step;
-    valueInput.value = value ? value[i] : 0;
-
-    slider.addEventListener('input', () => {
-      value[i] = parseFloat(slider.value);
-      valueInput.value = value[i];
-      onChange(value);
-    });
-
-    valueInput.addEventListener('input', () => {
-      value[i] = parseFloat(valueInput.value);
-      slider.value = value[i];
-      onChange(value);
-    });
-
-    channelContainer.appendChild(slider);
-    channelContainer.appendChild(valueInput);
-    container.appendChild(channelContainer);
-  }
-
-  return container;
-}
-
 async function buildUI() {
   const container = document.getElementById('effectsContainer');
   container.innerHTML = '';
-
+  
   // Get list of enabled effects in current order
-  const enabledEffects = effectOrder.filter(name => effectsState[name].enabled);
-
+  const enabledEffects = getEnabledEffects();
+  
   for (const name of effectOrder) {
     const effect = effectsState[name];
-    const div = document.createElement('div');
-    div.className = 'effect';
-    div.dataset.effectName = name;
-
-    // Create checkbox and label
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.id = `effect-${name}`;
-    checkbox.checked = effect.enabled;
-
-    const label = document.createElement('label');
-    label.htmlFor = `effect-${name}`;
-    label.textContent = name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-
-    const header = document.createElement('div');
-    header.className = 'effect-header';
-    header.appendChild(checkbox);
-    header.appendChild(label);
-
-    if (effect.enabled) {
-      const moveControls = document.createElement('div');
-      moveControls.className = 'move-controls';
-
-      // Up button (not shown for first enabled effect)
-      if (enabledEffects.indexOf(name) > 0) {
-        const upBtn = document.createElement('button');
-        upBtn.innerHTML = '↑';
-        upBtn.className = 'move-btn up';
-        upBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          moveEffectUp(name);
-        });
-        moveControls.appendChild(upBtn);
-      }
-
-      // Down button (not shown for last enabled effect)
-      if (enabledEffects.indexOf(name) < enabledEffects.length - 1) {
-        const downBtn = document.createElement('button');
-        downBtn.innerHTML = '↓';
-        downBtn.className = 'move-btn down';
-        downBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          moveEffectDown(name);
-        });
-        moveControls.appendChild(downBtn);
-      }
-
-      header.appendChild(moveControls);
-    }
-
-    div.appendChild(header);
-
-    // Create parameters container
-    const paramsContainer = document.createElement('div');
-    paramsContainer.className = 'params-container';
-
-    // Add controls for each uniform parameter
-    for (const [uniformName, uniform] of Object.entries(effect.uniforms)) {
-      if (uniformName === 'intensity') continue; // Handled separately
-
-      if (uniform.type === 'vec4') {
-        // Create controls for vec4 array
-        const arrayControl = createArrayControl(uniformName, effect.params[uniformName], uniform.min, uniform.max, uniform.step);
-        paramsContainer.appendChild(arrayControl);
-      } else if (uniform.type === 'vec2' || uniform.type === 'vec3' || uniform.type === 'vec4') {
-        // Create controls for vec2, vec3, or vec4
-        const vecControl = createVecControl(uniformName, effect.params[uniformName], uniform.min, uniform.max, uniform.step, uniform.arrayLength || 4);
-        paramsContainer.appendChild(vecControl);
-      } else {
-        // Standard float uniform
-        const paramControl = createSliderControl(uniformName, effect.params[uniformName] || uniform.defaultValue, uniform.min, uniform.max, uniform.step, (newValue) => {
-          effect.params[uniformName] = newValue;
-          updateEffect(name);
-        }, (newValue) => {
-          effect.params[uniformName] = newValue;
-          updateEffect(name);
-        });
-        paramsContainer.appendChild(paramControl);
-      }
-    }
-
-    // Add intensity control if the shader has an intensity uniform
-    if (effect.uniforms.intensity) {
-      const intensityControl = createSliderControl('Intensity', effect.intensity, effect.uniforms.intensity.min, effect.uniforms.intensity.max, effect.uniforms.intensity.step, (newValue) => {
-        effect.intensity = newValue;
-        updateEffect(name);
-      }, (newValue) => {
-        effect.intensity = newValue;
-        updateEffect(name);
-      });
-      paramsContainer.appendChild(intensityControl);
-    }
-
-    div.appendChild(paramsContainer);
+    const div = createEffectDiv(name, effect, enabledEffects);
     container.appendChild(div);
-
-    // Initialize visibility
-    paramsContainer.style.maxHeight = effect.enabled ? '500px' : '0';
-    paramsContainer.style.paddingTop = effect.enabled ? '10px' : '0';
-
-    // Handle checkbox changes
-    checkbox.addEventListener('change', () => {
-      effect.enabled = checkbox.checked;
-      paramsContainer.style.maxHeight = effect.enabled ? '500px' : '0';
-      paramsContainer.style.paddingTop = effect.enabled ? '10px' : '0';
-
-      // Rebuild UI to update move buttons
-      buildUI();
-      setupPostProcessing();
-    });
   }
 }
+
+function getEnabledEffects() {
+  return effectOrder.filter(name => effectsState[name].enabled);
+}
+
+function createEffectDiv(name, effect, enabledEffects) {
+  const div = document.createElement('div');
+  div.className = 'effect';
+  div.dataset.effectName = name;
+
+  const header = createEffectHeader(name, effect, enabledEffects);
+  div.appendChild(header);
+
+  const paramsContainer = createParamsContainer(name, effect);
+  div.appendChild(paramsContainer);
+
+  // Initialize visibility
+  paramsContainer.style.maxHeight = effect.enabled ? '500px' : '0';
+  paramsContainer.style.paddingTop = effect.enabled ? '10px' : '0';
+
+  return div;
+}
+
+function createEffectHeader(name, effect, enabledEffects) {
+  const header = document.createElement('div');
+  header.className = 'effect-header';
+
+  const checkbox = createCheckbox(name, effect);
+  const label = createLabel(name);
+  
+  header.appendChild(checkbox);
+  header.appendChild(label);
+
+  if (effect.enabled) {
+    const moveControls = createMoveControls(name, enabledEffects);
+    header.appendChild(moveControls);
+  }
+
+  return header;
+}
+
+function createCheckbox(name, effect) {
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.id = `effect-${name}`;
+  checkbox.checked = effect.enabled;
+
+  checkbox.addEventListener('change', () => {
+    effect.enabled = checkbox.checked;
+    rebuildUIForEffect(name, effect);
+  });
+
+  return checkbox;
+}
+
+function createLabel(name) {
+  const label = document.createElement('label');
+  label.htmlFor = `effect-${name}`;
+  label.textContent = name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+
+  return label;
+}
+
+function createMoveControls(name, enabledEffects) {
+  const moveControls = document.createElement('div');
+  moveControls.className = 'move-controls';
+
+  // Up button (not shown for first enabled effect)
+  if (enabledEffects.indexOf(name) > 0) {
+    const upBtn = createMoveButton('↑', 'up', () => moveEffectUp(name));
+    moveControls.appendChild(upBtn);
+  }
+
+  // Down button (not shown for last enabled effect)
+  if (enabledEffects.indexOf(name) < enabledEffects.length - 1) {
+    const downBtn = createMoveButton('↓', 'down', () => moveEffectDown(name));
+    moveControls.appendChild(downBtn);
+  }
+
+  return moveControls;
+}
+
+function createMoveButton(label, direction, onClick) {
+  const button = document.createElement('button');
+  button.innerHTML = label;
+  button.className = `move-btn ${direction}`;
+  button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+
+  return button;
+}
+
+function createParamsContainer(name, effect) {
+  const paramsContainer = document.createElement('div');
+  paramsContainer.className = 'params-container';
+
+  // Add controls for each uniform parameter
+  for (const [uniformName, uniform] of Object.entries(effect.uniforms)) {
+    //if (uniformName === 'intensity') continue; // Handled separately
+
+    const paramControl = createUniformControl(name, effect, uniformName, uniform);
+    paramsContainer.appendChild(paramControl);
+  }
+
+  return paramsContainer;
+}
+
+function createArrayDropdown(uniformName, arrayValues) {
+  const container = document.createElement('div');
+  container.className = 'array-dropdown-container';
+  
+  // Create the label for the dropdown
+  const label = document.createElement('label');
+  label.textContent = uniformName;
+  container.appendChild(label);
+  
+  // Create the dropdown (select element)
+  const dropdown = document.createElement('select');
+  dropdown.id = `${uniformName}-dropdown`;
+
+  // Add options to the dropdown based on array values
+  arrayValues.forEach((value, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = `Element ${index}: ${value}`;
+    dropdown.appendChild(option);
+  });
+
+  // Handle changes in the dropdown
+  dropdown.addEventListener('change', () => {
+    const selectedIndex = dropdown.value;
+    // Here, you can update the effect parameter based on the selected value.
+    // Assuming that the effect.params[uniformName] is an array that holds the uniform's values.
+    effect.params[uniformName] = arrayValues[selectedIndex];  // Update with selected value
+    updateEffect();  // Function to apply the effect based on updated values
+  });
+
+  // Append the dropdown to the container
+  container.appendChild(dropdown);
+
+  return container;
+}
+
+function getVectorLength(type) {
+  const vectorTypes = {
+    'vec2': 2,
+    'vec3': 3,
+    'vec4': 4,
+    'bvec2': 2,
+    'bvec3': 3,
+    'bvec4': 4,
+    'ivec2': 2,
+    'ivec3': 3,
+    'ivec4': 4
+  };
+  return vectorTypes[type] || 0;
+}
+
+function createVectorControls(uniformName, params, vectorLength, min, max, step) {
+  const container = document.createElement('div');
+  container.className = 'vector-controls';
+
+  // Create sliders/controls for each vector element
+  for (let i = 0; i < vectorLength; i++) {
+    const label = document.createElement('label');
+    label.textContent = `${uniformName}[${i}]`;
+
+    let control;
+
+    if (['bvec2', 'bvec3', 'bvec4'].includes(params.type)) {
+      // For bvec types (booleans), create checkboxes
+      control = document.createElement('input');
+      control.type = 'checkbox';
+      control.checked = params[i] || false;
+      control.addEventListener('change', (e) => {
+        params[i] = e.target.checked;
+        updateEffect(uniformName);
+      });
+    } else if (['ivec2', 'ivec3', 'ivec4'].includes(params.type)) {
+      // For ivec types (integers), create integer sliders
+      control = createSliderControl(`${uniformName}[${i}]`, params[i] || 0, min, max, step, (newValue) => {
+        params[i] = newValue;
+        updateEffect(uniformName);
+      });
+    } else {
+      // For vec types (floats), create float sliders
+      control = createSliderControl(`${uniformName}[${i}]`, params[i] || 0, min, max, step, (newValue) => {
+        params[i] = newValue;
+        updateEffect(uniformName);
+      });
+    }
+
+    // Append the label and control
+    container.appendChild(label);
+    container.appendChild(control);
+  }
+
+  return container;
+}
+
+function createSliderControl(labelText, value, min, max, step, onChange) {
+  const container = document.createElement('div');
+  container.className = 'slider-control';
+
+  const label = document.createElement('label');
+  label.textContent = labelText;
+
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.value = value;
+  slider.min = min;
+  slider.max = max;
+  slider.step = step;
+  slider.addEventListener('input', (e) => {
+    const newValue = parseFloat(e.target.value);
+    inputField.value = newValue;  // Update the input field when slider moves
+    onChange(newValue);
+  });
+
+  const inputField = document.createElement('input');
+  inputField.type = 'number';
+  inputField.value = value;  // Set initial value for the input field
+  inputField.min = min;
+  inputField.max = max;
+  inputField.step = step;
+  inputField.addEventListener('input', (e) => {
+    const newValue = parseFloat(e.target.value);
+    if (newValue >= min && newValue <= max) {
+      slider.value = newValue;  // Update slider when input changes
+      onChange(newValue);
+    }
+  });
+
+  // Ensure input field and slider are initialized with the same value
+  inputField.value = slider.value;
+
+  // Append label, input, and slider
+  container.appendChild(label);
+  container.appendChild(inputField);
+  container.appendChild(slider);
+
+  return container;
+}
+
+
+function createUniformControl(name, effect, uniformName, uniform) {
+  // Handle array types (create dropdown)
+  if (Array.isArray(effect.params[uniformName])) {
+    return createArrayDropdown(uniformName, effect.params[uniformName]);
+  }
+
+  // Handle vector types (vec2, vec3, vec4, bvec, ivec)
+  if (['vec2', 'vec3', 'vec4', 'bvec2', 'bvec3', 'bvec4', 'ivec2', 'ivec3', 'ivec4'].includes(uniform.type)) {
+    const vectorLength = getVectorLength(uniform.type);
+    return createVectorControls(uniformName, effect.params[uniformName], vectorLength, uniform.min, uniform.max, uniform.step);
+  }
+
+  // Handle int and float types (both use sliders)
+  if (uniform.type === 'int' || uniform.type === 'float') {
+    return createSliderControl(uniformName, effect.params[uniformName] || uniform.defaultValue, uniform.min, uniform.max, uniform.step, (newValue) => {
+      effect.params[uniformName] = newValue;
+      updateEffect(name);
+    });
+  }
+
+  // Handle bool types (checkbox)
+  if (uniform.type === 'bool') {
+    return createBoolControl(uniformName, effect.params[uniformName] || uniform.defaultValue);
+  }
+
+  // Handle matrix types (mat2, mat3, mat4)
+  if (uniform.type.startsWith('mat')) {
+    const size = parseInt(uniform.type.charAt(3), 10); // mat2 -> 2, mat3 -> 3, mat4 -> 4
+    return createMatrixControls(uniformName, effect.params[uniformName], size, uniform.min, uniform.max, uniform.step);
+  }
+
+  // If no matching type is found, log a warning (you can handle it as needed)
+  console.warn(`No handler for uniform type: ${uniform.type}`);
+  return null;
+}
+
+function rebuildUIForEffect(name, effect) {
+  buildUI(); // Rebuild UI to update move buttons
+  setupPostProcessing(); // Re-apply post-processing effects if necessary
+}
+
 
 // Move an effect up in the order
 function moveEffectUp(name) {
@@ -477,17 +507,31 @@ function moveEffectDown(name) {
   }
 }
 
-// Update a specific effect
 function updateEffect(name) {
   if (shaderPasses[name]) {
     // Update existing pass
     const pass = shaderPasses[name];
     const effect = effectsState[name];
-    
-    pass.uniforms.intensity.value = effect.intensity;
+
+    // Check if intensity uniform exists
+    if (pass.uniforms.intensity) {
+      pass.uniforms.intensity.value = effect.intensity;
+    }
+
+    // Update other parameters
     Object.keys(effect.params).forEach(param => {
       if (pass.uniforms[param]) {
-        pass.uniforms[param].value = effect.params[param];
+        // Ensure the value is defined
+        if (effect.params[param] !== undefined) {
+          // Check if the uniform is an array and needs toArray
+          if (Array.isArray(effect.params[param])) {
+            pass.uniforms[param].value = effect.params[param].slice(); // Use slice to create a copy
+          } else {
+            pass.uniforms[param].value = effect.params[param];
+          }
+        } else {
+          console.error(`Parameter ${param} is undefined for effect ${name}`);
+        }
       }
     });
   } else {

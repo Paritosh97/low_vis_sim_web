@@ -229,3 +229,17 @@ canvas {
   opacity: 0.3;
   cursor: default;
 }
+
+.array-dropdown-container {
+  margin-bottom: 10px;
+}
+
+.array-dropdown-container label {
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.array-dropdown-container select {
+  padding: 5px;
+  font-size: 14px;
+}

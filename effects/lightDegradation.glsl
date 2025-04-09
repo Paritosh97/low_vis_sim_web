@@ -2,7 +2,7 @@ precision highp float;
 
 uniform sampler2D uImage;
 uniform vec2 uResolution;
-uniform vec4 uKernels[16];  // min: (0.0, 0.0, 0.001, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.2, 0.5)
+uniform vec4 uKernels[16]; // min: (0.0, 0.0, 0.001, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.2, 0.5)
 
 varying vec2 vUv;
 
