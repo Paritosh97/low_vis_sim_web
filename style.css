@@ -109,51 +109,76 @@ canvas {
   accent-color: #00bcd4;
 }
 
+/* === Param Controls === */
+.param-control {
+  display: flex;
+  flex-direction: column; /* Stack elements vertically */
+  align-items: flex-start; /* Align items to the start of the container */
+  margin-bottom: 1rem; /* Increase spacing between controls */
+}
+
+.param-control label {
+  margin-bottom: 0.5rem; /* Add space below labels */
+  color: #ccc;
+  font-size: 1rem; /* Increase font size for better readability */
+}
+
+.param-control input {
+  width: 100%;
+  margin-bottom: 0.5rem; /* Add space below inputs */
+  background: #2a2a2a;
+  color: #ddd;
+  border: 1px solid #444;
+  padding: 8px; /* Increase padding for better click area */
+  border-radius: 5px;
+  font-size: 1rem; /* Increase font size for better readability */
+}
+
+/* === Effect Box === */
+.effect {
+  background: #2b2b2b;
+  padding: 1rem; /* Increase padding for better spacing */
+  margin-bottom: 1.5rem; /* Increase margin for better separation */
+  border-radius: 8px;
+  border: 1px solid #3c3c3c;
+}
+
+.effect-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.7rem; /* Increase space below header */
+  cursor: pointer;
+}
+
+.effect-header label {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem; /* Increase font size for better readability */
+}
+
 /* === Dropdown for Parameters === */
 .effect-params {
   display: none;
   margin-top: 1rem;
   padding-left: 1rem;
-  padding-top: 0.5rem;
-}
-
-/* === Param Controls === */
-.param-control {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.6rem;
-}
-.param-control label {
-  margin-right: 0.5rem;
-  color: #ccc;
-  font-size: 0.9rem;
-}
-.param-control input {
-  width: 100%;
-  margin-right: 0.5rem;
-  background: #2a2a2a;
-  color: #ddd;
-  border: 1px solid #444;
-  padding: 6px;
-  border-radius: 5px;
-  font-size: 0.9rem;
+  padding-top: 0.7rem; /* Increase padding for better spacing */
 }
 
 /* === Effect Buttons === */
-.effect-controls {
-  display: flex;
-  gap: 4px;
-}
 .effect-controls button {
   background: #3a3a3a;
   border: none;
   color: #ccc;
-  padding: 4px 8px;
+  padding: 6px 10px; /* Increase padding for better click area */
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 0.9rem; /* Increase font size for better readability */
   cursor: pointer;
   transition: background 0.2s;
 }
+
 .effect-controls button:hover {
   background: #555;
 }
@@ -185,14 +210,14 @@ canvas {
   background: #3a3a3a;
   border: none;
   color: #ccc;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 14px;
   padding: 0;
 }
 

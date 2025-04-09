@@ -58,44 +58,60 @@ async function initializeAllEffects() {
 
 // Parse uniforms with handling for static arrays
 function parseShaderUniforms(shaderCode) {
+  // Regular expression to match uniform declarations in GLSL
   const uniformRegex = /uniform\s+(\w+)\s+(\w+)(\[\d+\])?\s*;\s*\/\/\s*(?:min:\s*\(([^)]+)\))?.*?(?:max:\s*\(([^)]+)\))?.*?(?:default:\s*\(([^)]+)\))?/g;
 
   const uniforms = {};
   let match;
 
+  // Iterate over all matches of the regex in the shader code
   while ((match = uniformRegex.exec(shaderCode)) !== null) {
     const [_, type, name, isArray, min, max, defaultValue] = match;
 
+    // Helper function to parse numbers from a string
     const parseNumbers = str => str?.match(/[\d.\-]+/g)?.map(Number);
 
+    // Parse min, max, and default values from the shader comments
     let parsedMin = min ? parseNumbers(min) : [];
     let parsedMax = max ? parseNumbers(max) : [];
     let parsedDefault = defaultValue ? parseNumbers(defaultValue) : [];
 
+    let arrayLength = 0;
+
     if (isArray) {
       // Extract the size of the array (e.g., uKernels[16])
-      const arrayLength = parseInt(isArray.match(/\d+/)[0], 10);
-      
+      arrayLength = parseInt(isArray.match(/\d+/)[0], 10);
+
       // Ensure the min, max, and default values are correctly sized
       parsedMin = parsedMin.length === 1 ? Array(arrayLength).fill(parsedMin[0]) : parsedMin;
       parsedMax = parsedMax.length === 1 ? Array(arrayLength).fill(parsedMax[0]) : parsedMax;
-      parsedDefault = parsedDefault.length === 1 ? Array(arrayLength).fill(parsedDefault[0]) : parsedDefault;
+
+      // If default values are not enough, expand them to match the array length
+      if (parsedDefault.length < arrayLength) {
+        parsedDefault = Array(arrayLength).fill(parsedDefault[0]);
+      }
+
+      // Log the array length and default values for debugging
+      console.log(`Array ${name} length:`, arrayLength);
+      console.log(`Default values for ${name}:`, parsedDefault);
     }
 
+    // Store the parsed uniform information
     uniforms[name] = {
       type,
       array: !!isArray,
-      arrayLength: isArray ? parseInt(isArray.match(/\d+/)[0], 10) : 0,
+      arrayLength,
       defaultValue: parsedDefault,
       value: parsedDefault,
       min: parsedMin,
       max: parsedMax,
-      step: 0.01, // Default step
+      step: 0.01, // Default step size for UI controls
     };
   }
 
   return uniforms;
 }
+
 
 // Initialize a single effect state
 async function initializeEffectState(name) {

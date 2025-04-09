@@ -1,5 +1,5 @@
 uniform sampler2D tDiffuse;
-uniform float intensity;
+uniform float intensity; // min: 0.0 max: 1.0
 varying vec2 vUv;
 
 void main() {
