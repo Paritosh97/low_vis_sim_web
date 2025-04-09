@@ -329,6 +329,37 @@ async function buildUI() {
     header.appendChild(checkbox);
     header.appendChild(label);
 
+    if (effect.enabled) {
+      const moveControls = document.createElement('div');
+      moveControls.className = 'move-controls';
+
+      // Up button (not shown for first enabled effect)
+      if (enabledEffects.indexOf(name) > 0) {
+        const upBtn = document.createElement('button');
+        upBtn.innerHTML = '↑';
+        upBtn.className = 'move-btn up';
+        upBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          moveEffectUp(name);
+        });
+        moveControls.appendChild(upBtn);
+      }
+
+      // Down button (not shown for last enabled effect)
+      if (enabledEffects.indexOf(name) < enabledEffects.length - 1) {
+        const downBtn = document.createElement('button');
+        downBtn.innerHTML = '↓';
+        downBtn.className = 'move-btn down';
+        downBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          moveEffectDown(name);
+        });
+        moveControls.appendChild(downBtn);
+      }
+
+      header.appendChild(moveControls);
+    }
+
     div.appendChild(header);
 
     // Create parameters container
