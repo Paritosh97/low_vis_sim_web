@@ -459,6 +459,58 @@ function createVectorControls(uniformName, params, vectorLength, min, max, step)
   return container;
 }
 
+
+function createBoolControl(uniformName, value) {
+  const container = document.createElement('div');
+  container.className = 'bool-control';
+
+  const label = document.createElement('label');
+  label.textContent = uniformName;
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = value;
+  checkbox.addEventListener('change', (e) => {
+    value = e.target.checked;
+    updateEffect(uniformName);
+  });
+
+  container.appendChild(label);
+  container.appendChild(checkbox);
+
+  return container;
+}
+
+function createMatrixControls(uniformName, value, size, min, max, step) {
+  const container = document.createElement('div');
+  container.className = 'matrix-controls';
+
+  const label = document.createElement('label');
+  label.textContent = uniformName;
+
+  const matrix = value || new THREE[`Matrix${size}`]();
+
+  for (let i = 0; i < size; i++) {
+    for (let j = 0; j < size; j++) {
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.value = matrix.elements[i * size + j];
+      input.min = min;
+      input.max = max;
+      input.step = step;
+      input.addEventListener('input', (e) => {
+        matrix.elements[i * size + j] = parseFloat(e.target.value);
+        updateEffect(uniformName);
+      });
+      container.appendChild(input);
+    }
+  }
+
+  container.appendChild(label);
+
+  return container;
+}
+
 function createSliderControl(labelText, value, min, max, step, onChange) {
   const container = document.createElement('div');
   container.className = 'slider-control';
@@ -586,35 +638,6 @@ function moveEffectDown(name) {
   }
 }
 
-function updateEffect(name) {
-  if (shaderPasses[name]) {
-    // Update existing pass
-    const pass = shaderPasses[name];
-    const effect = effectsState[name];
-
-    // Update other parameters
-    Object.keys(effect.params).forEach(param => {
-      if (pass.uniforms[param]) {
-        // Ensure the value is defined
-        if (effect.params[param] !== undefined) {
-          // Check if the uniform is an array and needs toArray
-          if (Array.isArray(effect.params[param])) {
-            pass.uniforms[param].value = effect.params[param].slice(); // Use slice to create a copy
-          } else {
-            pass.uniforms[param].value = effect.params[param];
-          }
-        } else {
-          console.error(`Parameter ${param} is undefined for effect ${name}`);
-        }
-      }
-    });
-  } else {
-    // Rebuild the entire composer
-    setupPostProcessing();
-  }
-}
-
-// Set up the post-processing pipeline
 async function setupPostProcessing() {
   if (!texture) return;
 
@@ -634,14 +657,20 @@ async function setupPostProcessing() {
     if (effect.enabled) {
       try {
         const shaderCode = await fetch(`effects/${name}.glsl`).then(r => r.text());
-        
+
         const uniforms = {
-          tDiffuse: { value: null }
+          tDiffuse: { value: null },
+          uImage: { value: texture },
+          uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
         };
 
         // Add all parameters to uniforms
         Object.keys(effect.params).forEach(param => {
-          uniforms[param] = { value: effect.params[param] };
+          if (Array.isArray(effect.params[param])) {
+            uniforms[param] = { value: effect.params[param].map(val => new THREE.Vector4(...val)) };
+          } else {
+            uniforms[param] = { value: effect.params[param] };
+          }
         });
 
         const shader = new ShaderPass({
@@ -669,6 +698,37 @@ async function setupPostProcessing() {
     }
   }
 }
+
+function updateEffect(name) {
+  if (shaderPasses[name]) {
+    const pass = shaderPasses[name];
+    const effect = effectsState[name];
+
+    Object.keys(effect.params).forEach(param => {
+      if (pass.uniforms[param]) {
+        if (effect.params[param] !== undefined) {
+          if (Array.isArray(effect.params[param])) {
+            pass.uniforms[param].value = effect.params[param].map(val => {
+              if (val instanceof THREE.Vector2 || val instanceof THREE.Vector3 || val instanceof THREE.Vector4) {
+                return val.clone();
+              }
+              return val;
+            });
+          } else if (effect.params[param] instanceof THREE.Vector2 || effect.params[param] instanceof THREE.Vector3 || effect.params[param] instanceof THREE.Vector4) {
+            pass.uniforms[param].value = effect.params[param].clone();
+          } else {
+            pass.uniforms[param].value = effect.params[param];
+          }
+        } else {
+          console.error(`Parameter ${param} is undefined for effect ${name}`);
+        }
+      }
+    });
+  } else {
+    setupPostProcessing();
+  }
+}
+
 
 // Load an image file
 function loadImage(file) {
