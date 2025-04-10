@@ -300,38 +300,88 @@ function createParamsContainer(name, effect) {
   return paramsContainer;
 }
 
-function createArrayDropdown(uniformName, arrayValues) {
+function createArrayDropdown(uniformName, arrayValues, effect, updateEffect, uniform) {
   const container = document.createElement('div');
   container.className = 'array-dropdown-container';
-  
-  // Create the label for the dropdown
+
+  // Label for the dropdown
   const label = document.createElement('label');
   label.textContent = uniformName;
   container.appendChild(label);
-  
-  // Create the dropdown (select element)
+
+  // Dropdown (select element)
   const dropdown = document.createElement('select');
   dropdown.id = `${uniformName}-dropdown`;
 
-  // Add options to the dropdown based on array values
-  arrayValues.forEach((value, index) => {
+  // Add options (using "Element 0", "Element 1", etc.)
+  arrayValues.forEach((_, index) => {
     const option = document.createElement('option');
     option.value = index;
     option.textContent = `Element ${index}`;
     dropdown.appendChild(option);
   });
 
-  // Handle changes in the dropdown
+  // Container for dynamically generated controls
+  const controlsContainer = document.createElement('div');
+  controlsContainer.className = 'array-controls-container';
+
+  // Function to update controls based on selected value
+  const updateControls = (selectedIndex) => {
+    controlsContainer.innerHTML = ''; // Clear previous controls
+    const selectedValue = arrayValues[selectedIndex];
+
+    if (Array.isArray(selectedValue)) {
+      // Vector types (vec2, vec3, etc.)
+      const vectorLength = selectedValue.length;
+      const vectorType = uniform.type.replace('[]', ''); // e.g., "vec3[]" → "vec3"
+      const vectorControls = createVectorControls(
+        `${uniformName}[${selectedIndex}]`, // Label like "myArray[0]"
+        selectedValue,
+        vectorLength,
+        uniform.min,
+        uniform.max,
+        uniform.step
+      );
+      controlsContainer.appendChild(vectorControls);
+    } else if (typeof selectedValue === 'number') {
+      // Single number (float/int)
+      const slider = createSliderControl(
+        `${uniformName}[${selectedIndex}]`, // Label like "myArray[0]"
+        selectedValue,
+        uniform.min,
+        uniform.max,
+        uniform.step,
+        (newValue) => {
+          arrayValues[selectedIndex] = newValue;
+          updateEffect();
+        }
+      );
+      controlsContainer.appendChild(slider);
+    } else if (typeof selectedValue === 'boolean') {
+      // Boolean (checkbox)
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selectedValue;
+      checkbox.addEventListener('change', (e) => {
+        arrayValues[selectedIndex] = e.target.checked;
+        updateEffect();
+      });
+      controlsContainer.appendChild(checkbox);
+    }
+  };
+
+  // Initialize with first element's controls
+  updateControls(0);
+
+  // Handle dropdown changes
   dropdown.addEventListener('change', () => {
-    const selectedIndex = dropdown.value;
-    // Here, you can update the effect parameter based on the selected value.
-    // Assuming that the effect.params[uniformName] is an array that holds the uniform's values.
-    effect.params[uniformName] = arrayValues[selectedIndex];  // Update with selected value
-    updateEffect();  // Function to apply the effect based on updated values
+    const selectedIndex = parseInt(dropdown.value, 10);
+    updateControls(selectedIndex);
   });
 
-  // Append the dropdown to the container
+  // Append dropdown and controls container
   container.appendChild(dropdown);
+  container.appendChild(controlsContainer);
 
   return container;
 }
@@ -355,15 +405,18 @@ function createVectorControls(uniformName, params, vectorLength, min, max, step)
   const container = document.createElement('div');
   container.className = 'vector-controls';
 
+  // Component labels based on vector length
+  const components = ['x', 'y', 'z', 'w'].slice(0, vectorLength);
+
   // Create sliders/controls for each vector element
   for (let i = 0; i < vectorLength; i++) {
     const label = document.createElement('label');
-    label.textContent = `${uniformName}[${i}]`;
+    label.textContent = `${components[i]}`;  // e.g., "color.x"
 
     let control;
 
     if (['bvec2', 'bvec3', 'bvec4'].includes(params.type)) {
-      // For bvec types (booleans), create checkboxes
+      // TODO For bvec types (booleans), create checkboxes
       control = document.createElement('input');
       control.type = 'checkbox';
       control.checked = params[i] || false;
@@ -373,20 +426,33 @@ function createVectorControls(uniformName, params, vectorLength, min, max, step)
       });
     } else if (['ivec2', 'ivec3', 'ivec4'].includes(params.type)) {
       // For ivec types (integers), create integer sliders
-      control = createSliderControl(`${uniformName}[${i}]`, params[i] || 0, min, max, step, (newValue) => {
-        params[i] = newValue;
-        updateEffect(uniformName);
-      });
+      control = createSliderControl(
+        `${components[i]}`,
+        params[i] || 0,
+        min[i],
+        max[i],
+        step,
+        (newValue) => {
+          params[i] = newValue;
+          updateEffect(uniformName);
+        }
+      );
     } else {
       // For vec types (floats), create float sliders
-      control = createSliderControl(`${uniformName}[${i}]`, params[i] || 0, min, max, step, (newValue) => {
-        params[i] = newValue;
-        updateEffect(uniformName);
-      });
+      control = createSliderControl(
+        `${components[i]}`,
+        params[i] || 0,
+        min[i],
+        max[i],
+        step,
+        (newValue) => {
+          params[i] = newValue;
+          updateEffect(uniformName);
+        }
+      );
     }
 
     // Append the label and control
-    container.appendChild(label);
     container.appendChild(control);
   }
 
@@ -441,7 +507,7 @@ function createSliderControl(labelText, value, min, max, step, onChange) {
 function createUniformControl(name, effect, uniformName, uniform) {
   // Handle array types (create dropdown)
   if (Array.isArray(effect.params[uniformName])) {
-    return createArrayDropdown(uniformName, effect.params[uniformName]);
+    return createArrayDropdown(uniformName, effect.params[uniformName], effect, updateEffect, uniform);
   }
 
   // Handle vector types (vec2, vec3, vec4, bvec, ivec)
@@ -460,12 +526,14 @@ function createUniformControl(name, effect, uniformName, uniform) {
 
   // Handle bool types (checkbox)
   if (uniform.type === 'bool') {
+    // TODO fix
     return createBoolControl(uniformName, effect.params[uniformName] || uniform.defaultValue);
   }
 
   // Handle matrix types (mat2, mat3, mat4)
   if (uniform.type.startsWith('mat')) {
     const size = parseInt(uniform.type.charAt(3), 10); // mat2 -> 2, mat3 -> 3, mat4 -> 4
+    // TODO fix
     return createMatrixControls(uniformName, effect.params[uniformName], size, uniform.min, uniform.max, uniform.step);
   }
 
