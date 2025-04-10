@@ -667,10 +667,21 @@ async function setupPostProcessing() {
         // Add all parameters to uniforms
         Object.keys(effect.params).forEach(param => {
           if (Array.isArray(effect.params[param])) {
-            uniforms[param] = { value: effect.params[param].map(val => new THREE.Vector4(...val)) };
-          } else {
-            uniforms[param] = { value: effect.params[param] };
+            uniforms[param] = {
+              value: effect.params[param].map(val => {
+                if (Array.isArray(val)) {
+                  switch (val.length) {
+                    case 2: return new THREE.Vector2(...val);
+                    case 3: return new THREE.Vector3(...val);
+                    case 4: return new THREE.Vector4(...val);
+                    default: return val;
+                  }
+                }
+                return val; // e.g. for float arrays
+              })
+            };
           }
+          
         });
 
         const shader = new ShaderPass({
