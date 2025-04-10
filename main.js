@@ -56,83 +56,98 @@ async function initializeAllEffects() {
   }
 }
 
-// Helper function to parse numbers from a string
-function parseNumbers(str) {
-  return str?.match(/[\d.\-]+/g)?.map(Number);
-}
-
-// Function to handle array size and adjust min, max, default values accordingly
-function handleArrayValues(isArray, arrayLength, min, max, defaultValue) {
-  let parsedMin = min.length === 1 ? Array(arrayLength).fill(min[0]) : min;
-  let parsedMax = max.length === 1 ? Array(arrayLength).fill(max[0]) : max;
-  
-  // Ensure the default values match the array length
-  let parsedDefault = defaultValue.length < arrayLength
-    ? Array(arrayLength).fill(defaultValue[0])
-    : defaultValue;
-
-  return { parsedMin, parsedMax, parsedDefault };
-}
-
-// Function to parse a uniform declaration and extract min, max, default values
-function parseUniformDeclaration(match) {
-  const [_, type, name, isArray, min, max, defaultValue] = match;
-  const arrayLength = isArray ? parseInt(isArray.match(/\d+/)?.[0], 10) : 0;
-  
-  const parsedMin = min ? parseNumbers(min) : [];
-  const parsedMax = max ? parseNumbers(max) : [];
-  const parsedDefault = defaultValue ? parseNumbers(defaultValue) : [];
-
-  // If it's an array, handle the size of min, max, and default values
-  let finalParsedMin = parsedMin;
-  let finalParsedMax = parsedMax;
-  let finalParsedDefault = parsedDefault;
-
-  if (isArray) {
-    ({ parsedMin: finalParsedMin, parsedMax: finalParsedMax, parsedDefault: finalParsedDefault } = 
-      handleArrayValues(isArray, arrayLength, parsedMin, parsedMax, parsedDefault));
-  }
-
-  return { type, name, arrayLength, finalParsedMin, finalParsedMax, finalParsedDefault };
-}
-
 function parseShaderUniforms(shaderCode) {
-  const uniformRegex = /uniform\s+(\w+)\s+(\w+)(\[\s*(\d+)\s*\])?\s*;\s*\/\/\s*(?:min:\s*\(([^)]+)\))?.*?(?:max:\s*\(([^)]+)\))?.*?(?:default:\s*\(([^)]+)\))?/g;
+  const uniformRegex = /uniform\s+(\w+)\s+(\w+)(\[\s*(\d+)\s*\])?\s*;\s*\/\/\s*(?:min:\s*\(([^)]+)\))?\s*(?:max:\s*\(([^)]+)\))?\s*(?:default:\s*\(([^)]+)\))?/g;
   const uniforms = {};
   let match;
 
-  // Iterate over all matches of the regex in the shader code
+  const parseValue = (value, type) => {
+    if (!value) return null;
+    return value.split(',').map(val => {
+      const trimmed = val.trim();
+      if (type.startsWith('b')) return trimmed === 'true';
+      return parseFloat(trimmed);
+    });
+  };
+
+  const createArray = (length, defaultValue) => {
+    return Array.from({ length }, () => [...defaultValue]);
+  };
+
   while ((match = uniformRegex.exec(shaderCode)) !== null) {
-    // Debugging output for every match
-    console.log("Match found:", match);
+    const type = match[1];
+    const name = match[2];
+    const isArray = !!match[3];
+    const arrayLength = isArray ? parseInt(match[4], 10) : 1;
 
-    // Parse the uniform declaration
-    const { type, name, arrayLength, finalParsedMin, finalParsedMax, finalParsedDefault } = parseUniformDeclaration(match);
+    // Parse min, max, default values
+    const min = match[5] ? parseValue(match[5], type) : null;
+    const max = match[6] ? parseValue(match[6], type) : null;
+    const defaultValue = match[7] ? parseValue(match[7], type) : null;
 
-    // Parse the min/max/defaults if they are missing
-    const min = finalParsedMin || (type === 'float' || type === 'int' ? -Infinity : 0);
-    const max = finalParsedMax || (type === 'float' || type === 'int' ? Infinity : 1);
-    const defaultValue = finalParsedDefault !== undefined ? finalParsedDefault : (type === 'float' || type === 'int' ? 0 : false); 
+    // Handle vector types (vec2/3/4, ivec, bvec)
+    if (type.match(/^[bi]?vec[234]$/)) {
+      const vecSize = parseInt(type.slice(-1));
+      const def = defaultValue || Array(vecSize).fill(type.startsWith('b') ? false : 0.5);
+      const mn = min || Array(vecSize).fill(type.startsWith('b') ? false : 0);
+      const mx = max || Array(vecSize).fill(type.startsWith('b') ? true : 1);
 
-    // Store the parsed uniform information
-    uniforms[name] = {
-      type,
-      array: !!arrayLength,
-      arrayLength,
-      defaultValue,
-      value: defaultValue,  // Default value is set as initial value
-      min,
-      max,
-      step: 0.01,  // Default step size for UI controls
-    };
+      uniforms[name] = {
+        type,
+        array: isArray,
+        arrayLength: isArray ? arrayLength : 1,
+        defaultValue: isArray ? createArray(arrayLength, def) : def,
+        value: isArray ? createArray(arrayLength, def) : def,
+        min: mn,
+        max: mx,
+        step: type.startsWith('i') ? 1 : 0.01
+      };
+    }
+    // Handle matrix types (mat2/3/4)
+    else if (type.match(/^mat[234]$/)) {
+      const matrixSize = parseInt(type.slice(-1));
+      const def = defaultValue || Array(matrixSize).fill(0.5);
+      const mn = min || Array(matrixSize).fill(0);
+      const mx = max || Array(matrixSize).fill(1);
+
+      uniforms[name] = {
+        type,
+        array: isArray,
+        arrayLength: isArray ? arrayLength : 1,
+        defaultValue: isArray ? createArray(arrayLength, def) : def,
+        value: isArray ? createArray(arrayLength, def) : def,
+        min: mn,
+        max: mx,
+        step: 0.01
+      };
+    }
+    // Handle scalar types (float, int, bool)
+    else {
+      const def = defaultValue !== null ? defaultValue[0] : 
+                 (type === 'float' ? 0.5 : 
+                  (type === 'int' ? 0 : false));
+      const mn = min !== null ? min[0] : 
+                (type === 'float' ? 0 : 
+                 (type === 'int' ? -100 : false));
+      const mx = max !== null ? max[0] : 
+                (type === 'float' ? 1 : 
+                 (type === 'int' ? 100 : true));
+
+      uniforms[name] = {
+        type,
+        array: isArray,
+        arrayLength: isArray ? arrayLength : 1,
+        defaultValue: isArray ? Array(arrayLength).fill(def) : def,
+        value: isArray ? Array(arrayLength).fill(def) : def,
+        min: mn,
+        max: mx,
+        step: type === 'int' ? 1 : 0.01
+      };
+    }
   }
-
-  // Debugging output for the final parsed uniforms
-  console.log("Parsed uniforms:", uniforms);
 
   return uniforms;
 }
-
 
 // Initialize a single effect state
 async function initializeEffectState(name) {
@@ -145,14 +160,12 @@ async function initializeEffectState(name) {
     
     const params = {};
     Object.keys(uniforms).forEach(uniform => {
-      if (uniform !== 'intensity') {
+      console.log(`Uniform ${uniform} initialized with value:`, uniforms[uniform].defaultValue);
       params[uniform] = uniforms[uniform].defaultValue;
-      }
     });
 
     return {
       enabled: false,
-      intensity: 0.5,
       params,
       uniforms
     };
@@ -160,7 +173,6 @@ async function initializeEffectState(name) {
     console.error(`Error initializing effect ${name}:`, error);
     return {
       enabled: false,
-      intensity: 0.5,
       params: {},
       uniforms: {}
     };
@@ -280,7 +292,6 @@ function createParamsContainer(name, effect) {
 
   // Add controls for each uniform parameter
   for (const [uniformName, uniform] of Object.entries(effect.uniforms)) {
-    //if (uniformName === 'intensity') continue; // Handled separately
 
     const paramControl = createUniformControl(name, effect, uniformName, uniform);
     paramsContainer.appendChild(paramControl);
@@ -306,7 +317,7 @@ function createArrayDropdown(uniformName, arrayValues) {
   arrayValues.forEach((value, index) => {
     const option = document.createElement('option');
     option.value = index;
-    option.textContent = `Element ${index}: ${value}`;
+    option.textContent = `Element ${index}`;
     dropdown.appendChild(option);
   });
 
@@ -397,26 +408,26 @@ function createSliderControl(labelText, value, min, max, step, onChange) {
   slider.step = step;
   slider.addEventListener('input', (e) => {
     const newValue = parseFloat(e.target.value);
-    inputField.value = newValue;  // Update the input field when slider moves
+    inputField.value = newValue;
     onChange(newValue);
   });
 
   const inputField = document.createElement('input');
   inputField.type = 'number';
-  inputField.value = value;  // Set initial value for the input field
+  inputField.value = value;
   inputField.min = min;
   inputField.max = max;
   inputField.step = step;
   inputField.addEventListener('input', (e) => {
     const newValue = parseFloat(e.target.value);
     if (newValue >= min && newValue <= max) {
-      slider.value = newValue;  // Update slider when input changes
+      slider.value = newValue;
       onChange(newValue);
     }
   });
 
   // Ensure input field and slider are initialized with the same value
-  inputField.value = slider.value;
+  slider.value = inputField.value;
 
   // Append label, input, and slider
   container.appendChild(label);
@@ -513,11 +524,6 @@ function updateEffect(name) {
     const pass = shaderPasses[name];
     const effect = effectsState[name];
 
-    // Check if intensity uniform exists
-    if (pass.uniforms.intensity) {
-      pass.uniforms.intensity.value = effect.intensity;
-    }
-
     // Update other parameters
     Object.keys(effect.params).forEach(param => {
       if (pass.uniforms[param]) {
@@ -562,8 +568,7 @@ async function setupPostProcessing() {
         const shaderCode = await fetch(`effects/${name}.glsl`).then(r => r.text());
         
         const uniforms = {
-          tDiffuse: { value: null },
-          intensity: { value: effect.intensity }
+          tDiffuse: { value: null }
         };
 
         // Add all parameters to uniforms
@@ -638,7 +643,6 @@ function setupEventListeners() {
           name, 
           {
             enabled: state.enabled,
-            intensity: state.intensity,
             params: state.params
           }
         ])
@@ -670,7 +674,6 @@ function setupEventListeners() {
         for (const [name, state] of Object.entries(data.effectsState || {})) {
           if (effectsState[name]) {
             effectsState[name].enabled = state.enabled;
-            effectsState[name].intensity = state.intensity;
             effectsState[name].params = state.params;
           }
         }
