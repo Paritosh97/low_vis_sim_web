@@ -25,6 +25,8 @@ vec2 rotate(vec2 p, float angle) {
 }
 
 void main() {
+    // TODO pass this from the js side
+    vec2 uResolution = vec2(1.0, 1.0);
     vec2 p = vUv * uResolution;
 
     vec2 rotatedP = p;
@@ -44,5 +46,6 @@ void main() {
     }
 
     vec2 distortedUv = rotatedP / uResolution;
-    gl_FragColor = texture2D(uTexture, distortedUv);
+	
+	gl_FragColor = texture2D(uTexture, distortedUv);
 }
