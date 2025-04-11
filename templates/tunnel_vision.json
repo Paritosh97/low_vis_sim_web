@@ -1,0 +1,344 @@
+{
+  "effectOrder": [
+    "lightDegradation",
+    "visualFieldLoss",
+    "rotationDistortion",
+    "spatialDistortion",
+    "infilling",
+    "visualAcuityLoss",
+    "colorShift",
+    "fovReduction",
+    "contrastChange"
+  ],
+  "effectsState": {
+    "lightDegradation": {
+      "enabled": true,
+      "params": {
+        "uKernels": [
+          [
+            0.1,
+            0.1,
+            0.2,
+            0.8
+          ],
+          [
+            0.1,
+            0.9,
+            0.2,
+            0.8
+          ],
+          [
+            0.9,
+            0.1,
+            0.05,
+            0.25
+          ],
+          [
+            0.9,
+            0.9,
+            0.2,
+            0.8
+          ],
+          [
+            0.5,
+            0.1,
+            0.2,
+            0.8
+          ],
+          [
+            0.5,
+            0.9,
+            0.2,
+            0.8
+          ],
+          [
+            0.1,
+            0.5,
+            0.2,
+            0.8
+          ],
+          [
+            0.9,
+            0.5,
+            0.2,
+            0.8
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    "visualFieldLoss": {
+      "enabled": false,
+      "params": {
+        "uThreshold": 0.5
+      }
+    },
+    "rotationDistortion": {
+      "enabled": false,
+      "params": {
+        "uCenters": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "uSigmas": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "uWeights": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      }
+    },
+    "spatialDistortion": {
+      "enabled": false,
+      "params": {
+        "uCenters": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "uSigmas": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "uWeights": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      }
+    },
+    "infilling": {
+      "enabled": false,
+      "params": {
+        "uKernels": [
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ]
+        ]
+      }
+    },
+    "visualAcuityLoss": {
+      "enabled": false,
+      "params": {
+        "uKernels": [
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ],
+          [
+            0.5,
+            0.5,
+            0.2,
+            0.5
+          ]
+        ]
+      }
+    },
+    "colorShift": {
+      "enabled": false,
+      "params": {
+        "uNormalMatrix": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "uCVDMatrix": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      }
+    },
+    "fovReduction": {
+      "enabled": false,
+      "params": {
+        "uThreshold": 0.5
+      }
+    },
+    "contrastChange": {
+      "enabled": false,
+      "params": {
+        "uHorizontalScale": 0.5,
+        "uVerticalScale": 0.5
+      }
+    }
+  }
+}

@@ -31,4 +31,5 @@ void main() {
     }
 
     blurredColor /= totalWeight;
-    gl_FragColor = vec4(blurredColor, ori
+    gl_FragColor = vec4(blurredColor, originalColor.a);
+}
