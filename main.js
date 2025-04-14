@@ -183,18 +183,17 @@ function parseShaderUniforms(shaderCode) {
   return uniforms;
 }
 
-// Initialize a single effect state
 async function initializeEffectState(name) {
   try {
     const shaderCode = await fetch(`effects/${name}.glsl`).then(r => r.text());
     const uniforms = parseShaderUniforms(shaderCode);
-    
+
     // Remove Three.js managed uniforms
     delete uniforms.tDiffuse;
-    
+
     const params = {};
     Object.keys(uniforms).forEach(uniform => {
-      //console.log(`Uniform ${uniform} initialized with value:`, uniforms[uniform].defaultValue);
+      console.log(`Initializing uniform ${uniform} for effect ${name} with value:`, uniforms[uniform].defaultValue);
       params[uniform] = uniforms[uniform].defaultValue;
     });
 
@@ -212,6 +211,7 @@ async function initializeEffectState(name) {
     };
   }
 }
+
 
 async function buildUI() {
   const container = document.getElementById('effectsContainer');
@@ -758,6 +758,8 @@ async function setupPostProcessing() {
                 return val; // e.g. for float arrays
               })
             };
+          } else {
+            uniforms[param] = { value: effect.params[param] };
           }
         });
 
@@ -775,6 +777,7 @@ async function setupPostProcessing() {
 
         composer.addPass(shader);
         shaderPasses[name] = shader;
+        //console.log(`Shader pass for effect ${name} added.`); // Debug log
       } catch (error) {
         console.error(`Error setting up effect ${name}:`, error);
       }
@@ -786,6 +789,7 @@ async function setupPostProcessing() {
     }
   }
 }
+
 
 
 function updateEffect(name) {
@@ -962,11 +966,11 @@ init();
 async function loadDefaultImage() {
   try {
     texture = await loader.loadAsync('amsler_grid.jpg');
+    console.log('Default image loaded:', texture); // Debug log
     createPlane(texture);
     updateCameraAndRenderer(texture.image.width, texture.image.height);
     setupPostProcessing();
   } catch (error) {
     console.error('Error loading default image:', error);
-    // You might want to show a message to the user here
   }
 }
