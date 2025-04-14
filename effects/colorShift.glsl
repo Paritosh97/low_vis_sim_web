@@ -54,9 +54,27 @@ mat3 getCVDMatrix(int type, int level) {
     else return getTritanomalyMatrix(level);
 }
 
+mat3 interpolate(mat3 a, mat3 b, float t) {
+    return mat3(
+        mix(a[0][0], b[0][0], t), mix(a[0][1], b[0][1], t), mix(a[0][2], b[0][2], t),
+        mix(a[1][0], b[1][0], t), mix(a[1][1], b[1][1], t), mix(a[1][2], b[1][2], t),
+        mix(a[2][0], b[2][0], t), mix(a[2][1], b[2][1], t), mix(a[2][2], b[2][2], t)
+    );
+}
+
+
 void main() {
     vec4 color = texture2D(uImage, vUv);
-    int level = int(floor(uSeverity * 10.0 + 0.5));
-    mat3 cvd = getCVDMatrix(uCVDType, level);
+    
+    float scaled = uSeverity * 10.0;
+    int lowLevel = int(floor(scaled));
+    int highLevel = min(lowLevel + 1, 10);
+    float t = fract(scaled);
+
+    mat3 lowMat = getCVDMatrix(uCVDType, lowLevel);
+    mat3 highMat = getCVDMatrix(uCVDType, highLevel);
+    
+    mat3 cvd = interpolate(lowMat, highMat, t);
+
     gl_FragColor = vec4(cvd * color.rgb, color.a);
 }

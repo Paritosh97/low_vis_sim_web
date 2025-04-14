@@ -46,13 +46,26 @@ async function init() {
   setupEventListeners();
   
   // Start animation loop
-  animate();
+  animate();  
+
+  // Call this instead of the original default image loading code
+  await loadDefaultImage();
+
+  const material = new THREE.MeshBasicMaterial({ map: texture });
+  const geometry = new THREE.PlaneGeometry(2, 2);
+  imageMesh = new THREE.Mesh(geometry, material);
+  scene.add(imageMesh);
+
+  // Setup post-processing
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
 }
 
-// Initialize all effects
 async function initializeAllEffects() {
   for (const name of effectOrder) {
-    effectsState[name] = await initializeEffectState(name);
+    const state = await initializeEffectState(name);
+    //console.log(`Initialized effect: ${name}`, state); // Log the initialized state
+    effectsState[name] = state;
   }
 }
 
@@ -181,7 +194,7 @@ async function initializeEffectState(name) {
     
     const params = {};
     Object.keys(uniforms).forEach(uniform => {
-      console.log(`Uniform ${uniform} initialized with value:`, uniforms[uniform].defaultValue);
+      //console.log(`Uniform ${uniform} initialized with value:`, uniforms[uniform].defaultValue);
       params[uniform] = uniforms[uniform].defaultValue;
     });
 
@@ -607,8 +620,6 @@ function createSliderControl(labelText, value, min, max, step, onChange) {
 
 function createUniformControl(name, effect, uniformName, uniform) {
   if (uniform.dropdownOptions) {
-    
-    console.log(uniformName, effect.params[uniformName], uniform.min, uniform.max, uniform.step);
     return createDropdownControl(
       uniformName,
       effect.params[uniformName] || 0,
@@ -716,6 +727,11 @@ async function setupPostProcessing() {
   // Add enabled effects in current order
   for (const name of effectOrder) {
     const effect = effectsState[name];
+    if (!effect) {
+      console.error(`Effect state for ${name} is undefined.`);
+      continue;
+    }
+
     if (effect.enabled) {
       try {
         const shaderCode = await fetch(`effects/${name}.glsl`).then(r => r.text());
@@ -743,7 +759,6 @@ async function setupPostProcessing() {
               })
             };
           }
-          
         });
 
         const shader = new ShaderPass({
@@ -771,6 +786,7 @@ async function setupPostProcessing() {
     }
   }
 }
+
 
 function updateEffect(name) {
   if (shaderPasses[name]) {
@@ -954,16 +970,3 @@ async function loadDefaultImage() {
     // You might want to show a message to the user here
   }
 }
-
-// Call this instead of the original default image loading code
-await loadDefaultImage();
-
-const material = new THREE.MeshBasicMaterial({ map: texture });
-const geometry = new THREE.PlaneGeometry(2, 2);
-imageMesh = new THREE.Mesh(geometry, material);
-scene.add(imageMesh);
-
-// Setup post-processing
-composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-
