@@ -2,7 +2,7 @@ precision highp float;
 
 uniform sampler2D uImage;
 uniform vec2 uResolution;
-uniform vec4 uKernels[16]; // min: (0.0, 0.0, 0.001, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.2, 0.5)
+uniform vec4 uKernels[16]; // min: (0.0, 0.0, 0.001, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.1, 0.1)
 
 varying vec2 vUv;
 
@@ -15,7 +15,6 @@ float gaussian(vec2 p, vec2 mu, float sigma) {
 void main() {
     vec2 uv = vUv;
     vec4 originalColor = texture2D(uImage, uv);
-
     vec3 blurredColor = vec3(0.0);
     float totalWeight = 0.0;
 
@@ -25,9 +24,13 @@ void main() {
         float sigma = kernel.z;
         float omega = kernel.w;
 
-        vec3 sampleColor = texture2D(uImage, uv + mu * sigma).rgb;
-        blurredColor += omega * gaussian(uv, mu, sigma) * sampleColor;
-        totalWeight += omega;
+        vec3 sampleColor = texture2D(uImage, uv + mu).rgb;
+
+        float weight = gaussian(uv, mu, sigma);
+
+        blurredColor += omega * weight * sampleColor;
+
+        totalWeight += omega * weight;
     }
 
     blurredColor /= totalWeight;

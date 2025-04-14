@@ -193,7 +193,7 @@ async function initializeEffectState(name) {
 
     const params = {};
     Object.keys(uniforms).forEach(uniform => {
-      console.log(`Initializing uniform ${uniform} for effect ${name} with value:`, uniforms[uniform].defaultValue);
+      //console.log(`Initializing uniform ${uniform} for effect ${name} with value:`, uniforms[uniform].defaultValue);
       params[uniform] = uniforms[uniform].defaultValue;
     });
 
@@ -966,7 +966,7 @@ init();
 async function loadDefaultImage() {
   try {
     texture = await loader.loadAsync('amsler_grid.jpg');
-    console.log('Default image loaded:', texture); // Debug log
+    //console.log('Default image loaded:', texture); // Debug log
     createPlane(texture);
     updateCameraAndRenderer(texture.image.width, texture.image.height);
     setupPostProcessing();
