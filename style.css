@@ -13,20 +13,21 @@ body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   height: 100vh;
   overflow: hidden;
+  display: flex; 
 }
 canvas {
   display: block;
-  position: fixed;
-  top: 0;
-  left: 0;
+  flex-grow: 1;
+  width: calc(100vw - 340px);
+  height: 100vh;
   z-index: 0;
 }
 
 /* === UI Panel === */
 #ui {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
+  position: relative; /* Change from absolute to relative */
+  top: auto;
+  left: auto;
   background: #1e1e1e;
   padding: 1rem;
   border-radius: 10px;
@@ -37,7 +38,9 @@ canvas {
   z-index: 10;
   scrollbar-width: thin;
   scrollbar-color: #555 #1e1e1e;
+  flex-shrink: 0;
 }
+
 #ui::-webkit-scrollbar {
   width: 6px;
 }
@@ -242,4 +245,21 @@ canvas {
 .array-dropdown-container select {
   padding: 5px;
   font-size: 14px;
+}
+
+.dropdown-control {
+  margin: 10px 0;
+}
+
+.dropdown-control label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.dropdown-control select {
+  width: 100%;
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
 }

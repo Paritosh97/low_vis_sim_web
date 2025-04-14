@@ -2,7 +2,7 @@ precision highp float;
 
 uniform sampler2D uImage;
 uniform float uSeverity;  // min: 0.0 max: 1.0 default: 0.5
-uniform int uCVDType;     // min: 0 max: 2 default: 1
+uniform int uCVDType;     // dropdown: (Protanomaly, Deuteranomaly, Tritanomaly)
 
 varying vec2 vUv;
 

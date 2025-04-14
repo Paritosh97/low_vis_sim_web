@@ -57,10 +57,10 @@ async function initializeAllEffects() {
 }
 
 function parseShaderUniforms(shaderCode) {
-  const uniformRegex = /uniform\s+(\w+)\s+(\w+)(\[\s*(\d+)\s*\])?\s*;\s*\/\/\s*(?:min:\s*\(([^)]+)\))?\s*(?:max:\s*\(([^)]+)\))?\s*(?:default:\s*\(([^)]+)\))?/g;
+  // Update the regex to capture dropdown options
+  const uniformRegex = /uniform\s+(\w+)\s+(\w+)(\[\s*(\d+)\s*\])?\s*;\s*\/\/\s*(?:min:\s*\(([^)]+)\))?\s*(?:max:\s*\(([^)]+)\))?\s*(?:default:\s*\(([^)]+)\))?\s*(?:dropdown:\s*\(([^)]+)\))?/g;
   const uniforms = {};
   let match;
-
   const parseValue = (value, type) => {
     if (!value) return null;
     return value.split(',').map(val => {
@@ -79,6 +79,23 @@ function parseShaderUniforms(shaderCode) {
     const name = match[2];
     const isArray = !!match[3];
     const arrayLength = isArray ? parseInt(match[4], 10) : 1;
+    const dropdownOptions = match[8] ? match[8].split(',').map(opt => opt.trim()) : null;
+
+      // Handle dropdown cases
+  if (dropdownOptions) {
+    uniforms[name] = {
+      type,
+      array: isArray,
+      arrayLength: isArray ? arrayLength : 1,
+      defaultValue: 0,  // First option is default
+      value: 0,
+      min: 0,
+      max: dropdownOptions.length - 1,
+      step: 1,
+      dropdownOptions
+    };
+    continue;  // Skip normal processing for dropdowns
+  }
 
     // Parse min, max, default values
     const min = match[5] ? parseValue(match[5], type) : null;
@@ -143,6 +160,10 @@ function parseShaderUniforms(shaderCode) {
         max: mx,
         step: type === 'int' ? 1 : 0.01
       };
+    }
+
+    if (dropdownOptions) {
+      uniforms[name].dropdownOptions = dropdownOptions;
     }
   }
 
@@ -298,6 +319,34 @@ function createParamsContainer(name, effect) {
   }
 
   return paramsContainer;
+}
+
+function createDropdownControl(uniformName, value, options, onChange) {
+  const container = document.createElement('div');
+  container.className = 'dropdown-control';
+
+  const label = document.createElement('label');
+  label.textContent = uniformName;
+
+  const select = document.createElement('select');
+  select.value = value;
+  
+  // Add options to the dropdown
+  options.forEach((option, index) => {
+    const optionElement = document.createElement('option');
+    optionElement.value = index;
+    optionElement.textContent = option;
+    select.appendChild(optionElement);
+  });
+
+  select.addEventListener('change', (e) => {
+    onChange(parseInt(e.target.value));
+  });
+
+  container.appendChild(label);
+  container.appendChild(select);
+
+  return container;
 }
 
 function createArrayDropdown(uniformName, arrayValues, effect, updateEffect, uniform) {
@@ -557,6 +606,19 @@ function createSliderControl(labelText, value, min, max, step, onChange) {
 
 
 function createUniformControl(name, effect, uniformName, uniform) {
+  if (uniform.dropdownOptions) {
+    
+    console.log(uniformName, effect.params[uniformName], uniform.min, uniform.max, uniform.step);
+    return createDropdownControl(
+      uniformName,
+      effect.params[uniformName] || 0,
+      uniform.dropdownOptions,
+      (newValue) => {
+        effect.params[uniformName] = newValue;
+        updateEffect(name);
+      }
+    );
+  }
   // Handle array types (create dropdown)
   if (Array.isArray(effect.params[uniformName])) {
     return createArrayDropdown(uniformName, effect.params[uniformName], effect, updateEffect, uniform);
@@ -741,7 +803,6 @@ function updateEffect(name) {
 }
 
 
-// Load an image file
 function loadImage(file) {
   const url = URL.createObjectURL(file);
   loader.load(url, tex => {
@@ -749,12 +810,54 @@ function loadImage(file) {
     if (imageMesh) scene.remove(imageMesh);
     createPlane(tex);
     setupPostProcessing();
+    
+    // Update camera and renderer to maintain aspect ratio
+    updateCameraAndRenderer(tex.image.width, tex.image.height);
   });
 }
 
-// Create a plane with the texture
+function updateCameraAndRenderer(imgWidth, imgHeight) {
+  const aspectRatio = imgWidth / imgHeight;
+  const canvasAspect = (window.innerWidth - 340) / window.innerHeight; // Account for sidebar
+  
+  // Update renderer size
+  renderer.setSize(window.innerWidth - 340, window.innerHeight);
+  
+  // Update camera to maintain image aspect ratio
+  if (aspectRatio > canvasAspect) {
+    // Image is wider than canvas
+    const height = 2 / aspectRatio;
+    camera.top = height / 2;
+    camera.bottom = -height / 2;
+    camera.left = -1;
+    camera.right = 1;
+  } else {
+    // Image is taller than canvas
+    const width = 2 * aspectRatio;
+    camera.left = -width / 2;
+    camera.right = width / 2;
+    camera.top = 1;
+    camera.bottom = -1;
+  }
+  
+  camera.updateProjectionMatrix();
+  if (composer) composer.setSize(window.innerWidth - 340, window.innerHeight);
+}
+
+// Update your window resize handler
+window.addEventListener('resize', () => {
+  if (texture) {
+    updateCameraAndRenderer(texture.image.width, texture.image.height);
+  } else {
+    renderer.setSize(window.innerWidth - 340, window.innerHeight);
+    if (composer) composer.setSize(window.innerWidth - 340, window.innerHeight);
+  }
+});
+
+// Update your createPlane function
 function createPlane(tex) {
-  const geometry = new THREE.PlaneGeometry(2, 2);
+  const aspectRatio = tex.image.width / tex.image.height;
+  const geometry = new THREE.PlaneGeometry(2 * Math.max(1, aspectRatio), 2 * Math.max(1, 1/aspectRatio));
   const material = new THREE.MeshBasicMaterial({ map: tex });
   imageMesh = new THREE.Mesh(geometry, material);
   scene.add(imageMesh);
@@ -840,8 +943,21 @@ function setupEventListeners() {
 // Initialize the application
 init(); 
 
-// Load default image
-texture = await loader.loadAsync('amsler_grid.jpg');
+async function loadDefaultImage() {
+  try {
+    texture = await loader.loadAsync('amsler_grid.jpg');
+    createPlane(texture);
+    updateCameraAndRenderer(texture.image.width, texture.image.height);
+    setupPostProcessing();
+  } catch (error) {
+    console.error('Error loading default image:', error);
+    // You might want to show a message to the user here
+  }
+}
+
+// Call this instead of the original default image loading code
+await loadDefaultImage();
+
 const material = new THREE.MeshBasicMaterial({ map: texture });
 const geometry = new THREE.PlaneGeometry(2, 2);
 imageMesh = new THREE.Mesh(geometry, material);
