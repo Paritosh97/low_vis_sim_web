@@ -17,18 +17,31 @@ void main() {
     vec4 originalColor = texture2D(uImage, uv);
 
     vec3 infilledColor = vec3(0.0);
+    float totalWeight = 0.0;
+
+    vec2 offsetUnit = vec2(1.0) / uResolution;
 
     for (int i = 0; i < 4; ++i) {
         vec4 kernel = uKernels[i];
-        vec2 mu = vec2(kernel.x, kernel.y);
+        vec2 mu = kernel.xy;
         float sigma = kernel.z;
-        float omega = kernel.w;
+        float weight = kernel.w;
 
-        vec2 offset = vec2(1.0) / uResolution;
-        vec3 neighborColor = texture2D(uImage, uv + offset * omega).rgb;
+        float g = gaussian(uv, mu, sigma);
 
-        infilledColor += omega * gaussian(uv, mu, sigma) * neighborColor;
+        // Use a fixed sample offset direction to ensure visible effect
+        vec2 offsetDir = normalize(uv - mu + 0.0001); // avoid zero vector
+
+        vec3 forwardColor  = texture2D(uImage, uv + offsetDir * offsetUnit * 5.0).rgb;
+        vec3 backwardColor = texture2D(uImage, uv - offsetDir * offsetUnit * 5.0).rgb;
+
+        vec3 averagedColor = 0.5 * (forwardColor + backwardColor);
+        vec3 contribution = g * averagedColor * weight;
+
+        infilledColor += contribution;
+        totalWeight += g * weight;
     }
 
+    infilledColor /= totalWeight;
     gl_FragColor = vec4(infilledColor, originalColor.a);
 }
