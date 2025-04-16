@@ -1,7 +1,4 @@
 import * as THREE from 'https://esm.sh/three';
-import { EffectComposer } from 'https://esm.sh/three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'https://esm.sh/three/examples/jsm/postprocessing/RenderPass.js';
-import { ShaderPass } from 'https://esm.sh/three/examples/jsm/postprocessing/ShaderPass.js';
 
 // DOM Elements
 const canvas = document.getElementById('threeCanvas');
@@ -14,115 +11,142 @@ const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const loader = new THREE.TextureLoader();
 
 // Global Variables
-let composer;
 let imageMesh;
 let texture;
-let shaderPasses = {};
-
-// Effect Order and State
-let effectOrder = [
-  "lightDegradation",
-  "visualFieldLoss",
-  "rotationDistortion",
-  "spatialDistortion",
-  "infilling",
-  "visualAcuityLoss",
-  "colorShift",
-  "fovReduction",
-  "contrastChange"
-];
-
-let effectsState = {};
+let shaderCode = null;
+let allUniforms = null;
 
 // Initialize the application
 async function init() {
-  // Initialize effect states
-  await initializeAllEffects();
-  
-  // Build the UI
-  buildUI();
-  
-  // Set up event listeners
-  setupEventListeners();
-  
-  // Start animation loop
-  animate();  
+    shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
+    allUniforms = parseShaderUniforms(shaderCode);
+    // Build the UI
+    buildUI();
 
-  // Call this instead of the original default image loading code
-  await loadDefaultImage();
+    // Set up event listeners
+    setupEventListeners();
 
-  const material = new THREE.MeshBasicMaterial({ map: texture });
-  const geometry = new THREE.PlaneGeometry(2, 2);
-  imageMesh = new THREE.Mesh(geometry, material);
-  scene.add(imageMesh);
+    // Start animation loop
+    animate();
 
-  // Setup post-processing
-  composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
+    // Call this instead of the original default image loading code
+    await loadDefaultImage();
+
+    const material = new THREE.MeshBasicMaterial({ map: texture });
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    imageMesh = new THREE.Mesh(geometry, material);
+    scene.add(imageMesh);
 }
 
-async function initializeAllEffects() {
-  for (const name of effectOrder) {
-    const state = await initializeEffectState(name);
-    //console.log(`Initialized effect: ${name}`, state); // Log the initialized state
-    effectsState[name] = state;
-  }
+function extractUniformData(match, effectBody, floatMatches, intMatches) {
+    const type = match[1];
+    const name = match[2];
+    const isArray = match[3] !== undefined;
+    const arrayLength = isArray ? parseInt(match[3], 10) : null;
+
+    let min = null, max = null, defaultValue = null, dropdownOptions = null;
+
+    // Check for float properties
+    const floatMatch = floatMatches.find(m => m.name === name);
+    if (floatMatch) {
+        min = parseFloat(floatMatch.min);
+        max = parseFloat(floatMatch.max);
+        defaultValue = parseFloat(floatMatch.defaultValue);
+    }
+
+    // Check for int properties
+    const intMatch = intMatches.find(m => m.name === name);
+    if (intMatch) {
+        dropdownOptions = intMatch.dropdownOptions;
+    }
+
+    return { type, name, isArray, arrayLength, min, max, defaultValue, dropdownOptions };
 }
 
 function parseShaderUniforms(shaderCode) {
-  // Update the regex to capture dropdown options
-  const uniformRegex = /uniform\s+(\w+)\s+(\w+)(\[\s*(\d+)\s*\])?\s*;\s*\/\/\s*(?:min:\s*\(([^)]+)\))?\s*(?:max:\s*\(([^)]+)\))?\s*(?:default:\s*\(([^)]+)\))?\s*(?:dropdown:\s*\(([^)]+)\))?/g;
-  const uniforms = {};
-  let match;
-  const parseValue = (value, type) => {
-    if (!value) return null;
-    return value.split(',').map(val => {
-      const trimmed = val.trim();
-      if (type.startsWith('b')) return trimmed === 'true';
-      return parseFloat(trimmed);
-    });
-  };
+    const effectRegex = /struct\s+(\w+)\s*\{\s*([^}]+)\s*\}/g;
+    const propertyRegex = /(\w+)\s+(\w+)(?:\s*\[\s*(\d+)\s*\])?\s*;/g;
+    const floatRegex = /float\s+(\w+)\s*(?:\/\/\s*min:\s*([\d\.]+)\s*max:\s*([\d\.]+)\s*default:\s*([\d\.]+))?/g;
+    const intRegex = /int\s+(\w+)\s*(?:\/\/\s*dropdown:\s*\(([^)]+)\))?/g;
 
-  const createArray = (length, defaultValue) => {
-    return Array.from({ length }, () => [...defaultValue]);
-  };
+    const effects = {};
 
-  while ((match = uniformRegex.exec(shaderCode)) !== null) {
-    const type = match[1];
-    const name = match[2];
-    const isArray = !!match[3];
-    const arrayLength = isArray ? parseInt(match[4], 10) : 1;
-    const dropdownOptions = match[8] ? match[8].split(',').map(opt => opt.trim()) : null;
+    let effectMatch;
+    while ((effectMatch = effectRegex.exec(shaderCode)) !== null) {
+        const effectName = effectMatch[1];
+        if (effectName == "Effect") continue;
+        const effectBody = effectMatch[2];
 
-      // Handle dropdown cases
-  if (dropdownOptions) {
-    uniforms[name] = {
-      type,
-      array: isArray,
-      arrayLength: isArray ? arrayLength : 1,
-      defaultValue: 0,  // First option is default
-      value: 0,
-      min: 0,
-      max: dropdownOptions.length - 1,
-      step: 1,
-      dropdownOptions
+        const uniforms = [];
+
+        // Extract all float and int matches at once
+        const floatMatches = [...effectBody.matchAll(floatRegex)].map(m => ({
+            name: m[1],
+            min: m[2],
+            max: m[3],
+            defaultValue: m[4]
+        }));
+
+        const intMatches = [...effectBody.matchAll(intRegex)].map(m => ({
+            name: m[1],
+            dropdownOptions: m[2] ? m[2].split(',').map(option => option.trim()) : null
+        }));
+
+        let propertyMatch;
+        // Parse properties within the effect
+        while ((propertyMatch = propertyRegex.exec(effectBody)) !== null) {
+            const uniformData = extractUniformData(propertyMatch, effectBody, floatMatches, intMatches);
+
+            if (uniformData.dropdownOptions) {
+                uniforms.push({
+                    name: uniformData.name,
+                    ...createDropdownUniform(uniformData.type, uniformData.isArray, uniformData.arrayLength, uniformData.dropdownOptions)
+                });
+            } else {
+                uniforms.push({
+                    name: uniformData.name,
+                    ...createUniform(uniformData.type, uniformData.isArray, uniformData.arrayLength, uniformData.min, uniformData.max, uniformData.defaultValue)
+                });
+            }
+        }
+
+        effects[effectName] = uniforms;
+    }
+
+    return effects;
+}
+
+function createDropdownUniform(type, isArray, arrayLength, dropdownOptions) {
+    return {
+        type,
+        array: isArray,
+        arrayLength: isArray ? arrayLength : 1,
+        defaultValue: 0,
+        value: 0,
+        min: 0,
+        max: dropdownOptions.length - 1,
+        step: 1,
+        dropdownOptions
     };
-    continue;  // Skip normal processing for dropdowns
-  }
+}
 
-    // Parse min, max, default values
-    const min = match[5] ? parseValue(match[5], type) : null;
-    const max = match[6] ? parseValue(match[6], type) : null;
-    const defaultValue = match[7] ? parseValue(match[7], type) : null;
-
-    // Handle vector types (vec2/3/4, ivec, bvec)
+function createUniform(type, isArray, arrayLength, min, max, defaultValue) {
     if (type.match(/^[bi]?vec[234]$/)) {
-      const vecSize = parseInt(type.slice(-1));
-      const def = defaultValue || Array(vecSize).fill(type.startsWith('b') ? false : 0.5);
-      const mn = min || Array(vecSize).fill(type.startsWith('b') ? false : 0);
-      const mx = max || Array(vecSize).fill(type.startsWith('b') ? true : 1);
+        return createVectorUniform(type, isArray, arrayLength, min, max, defaultValue);
+    } else if (type.match(/^mat[234]$/)) {
+        return createMatrixUniform(type, isArray, arrayLength, min, max, defaultValue);
+    } else {
+        return createScalarUniform(type, isArray, arrayLength, min, max, defaultValue);
+    }
+}
 
-      uniforms[name] = {
+function createVectorUniform(type, isArray, arrayLength, min, max, defaultValue) {
+    const vecSize = parseInt(type.slice(-1));
+    const def = defaultValue || Array(vecSize).fill(type.startsWith('b') ? false : 0.5);
+    const mn = min || Array(vecSize).fill(type.startsWith('b') ? false : 0);
+    const mx = max || Array(vecSize).fill(type.startsWith('b') ? true : 1);
+
+    return {
         type,
         array: isArray,
         arrayLength: isArray ? arrayLength : 1,
@@ -131,16 +155,16 @@ function parseShaderUniforms(shaderCode) {
         min: mn,
         max: mx,
         step: type.startsWith('i') ? 1 : 0.01
-      };
-    }
-    // Handle matrix types (mat2/3/4)
-    else if (type.match(/^mat[234]$/)) {
-      const matrixSize = parseInt(type.slice(-1));
-      const def = defaultValue || Array(matrixSize).fill(0.5);
-      const mn = min || Array(matrixSize).fill(0);
-      const mx = max || Array(matrixSize).fill(1);
+    };
+}
 
-      uniforms[name] = {
+function createMatrixUniform(type, isArray, arrayLength, min, max, defaultValue) {
+    const matrixSize = parseInt(type.slice(-1));
+    const def = defaultValue || Array(matrixSize).fill(0.5);
+    const mn = min || Array(matrixSize).fill(0);
+    const mx = max || Array(matrixSize).fill(1);
+
+    return {
         type,
         array: isArray,
         arrayLength: isArray ? arrayLength : 1,
@@ -149,21 +173,21 @@ function parseShaderUniforms(shaderCode) {
         min: mn,
         max: mx,
         step: 0.01
-      };
-    }
-    // Handle scalar types (float, int, bool)
-    else {
-      const def = defaultValue !== null ? defaultValue[0] : 
-                 (type === 'float' ? 0.5 : 
-                  (type === 'int' ? 0 : false));
-      const mn = min !== null ? min[0] : 
-                (type === 'float' ? 0 : 
+    };
+}
+
+function createScalarUniform(type, isArray, arrayLength, min, max, defaultValue) {
+    const def = defaultValue !== null ? defaultValue :
+                (type === 'float' ? 0.5 :
+                 (type === 'int' ? 0 : false));
+    const mn = min !== null ? min :
+                (type === 'float' ? 0 :
                  (type === 'int' ? -100 : false));
-      const mx = max !== null ? max[0] : 
-                (type === 'float' ? 1 : 
+    const mx = max !== null ? max :
+                (type === 'float' ? 1 :
                  (type === 'int' ? 100 : true));
 
-      uniforms[name] = {
+    return {
         type,
         array: isArray,
         arrayLength: isArray ? arrayLength : 1,
@@ -172,94 +196,70 @@ function parseShaderUniforms(shaderCode) {
         min: mn,
         max: mx,
         step: type === 'int' ? 1 : 0.01
-      };
-    }
-
-    if (dropdownOptions) {
-      uniforms[name].dropdownOptions = dropdownOptions;
-    }
-  }
-
-  return uniforms;
+    };
 }
 
-async function initializeEffectState(name) {
-  try {
-    const shaderCode = await fetch(`effects/${name}.glsl`).then(r => r.text());
-    const uniforms = parseShaderUniforms(shaderCode);
-
-    // Remove Three.js managed uniforms
-    delete uniforms.tDiffuse;
-
-    const params = {};
-    Object.keys(uniforms).forEach(uniform => {
-      //console.log(`Initializing uniform ${uniform} for effect ${name} with value:`, uniforms[uniform].defaultValue);
-      params[uniform] = uniforms[uniform].defaultValue;
-    });
-
-    return {
-      enabled: false,
-      params,
-      uniforms
-    };
-  } catch (error) {
-    console.error(`Error initializing effect ${name}:`, error);
-    return {
-      enabled: false,
-      params: {},
-      uniforms: {}
-    };
-  }
+function createArray(length, defaultValue) {
+    return Array.from({ length }, () => [...defaultValue]);
 }
-
 
 async function buildUI() {
   const container = document.getElementById('effectsContainer');
   container.innerHTML = '';
+
+  console.log(allUniforms);
   
   // Get list of enabled effects in current order
   const enabledEffects = getEnabledEffects();
   
-  for (const name of effectOrder) {
-    const effect = effectsState[name];
-    const div = createEffectDiv(name, effect, enabledEffects);
+  for (const [effectName, effectUniforms] of Object.entries(allUniforms)) {
+    const div = createEffectDiv(effectName, effectUniforms, enabledEffects);
     container.appendChild(div);
   }
 }
 
 function getEnabledEffects() {
-  return effectOrder.filter(name => effectsState[name].enabled);
+  const enabledEffects = [];
+
+  for (const [effectName, effectUniforms] of Object.entries(allUniforms)) {
+    if (effectUniforms[0].defaultValue === true) {
+      enabledEffects.push(effectName);
+    }
+  }
+
+  return enabledEffects;
 }
 
-function createEffectDiv(name, effect, enabledEffects) {
+
+function createEffectDiv(name, uniforms, enabledEffects) {
   const div = document.createElement('div');
   div.className = 'effect';
   div.dataset.effectName = name;
 
-  const header = createEffectHeader(name, effect, enabledEffects);
+  const header = createEffectHeader(name, uniforms, enabledEffects);
   div.appendChild(header);
 
-  const paramsContainer = createParamsContainer(name, effect);
+  const paramsContainer = createParamsContainer(name, uniforms);
   div.appendChild(paramsContainer);
 
   // Initialize visibility
-  paramsContainer.style.maxHeight = effect.enabled ? '500px' : '0';
-  paramsContainer.style.paddingTop = effect.enabled ? '10px' : '0';
+  //paramsContainer.style.maxHeight = effect.enabled ? '500px' : '0';
+  //paramsContainer.style.paddingTop = effect.enabled ? '10px' : '0';
 
   return div;
 }
 
-function createEffectHeader(name, effect, enabledEffects) {
+function createEffectHeader(name, uniforms, enabledEffects) {
   const header = document.createElement('div');
   header.className = 'effect-header';
 
-  const checkbox = createCheckbox(name, effect);
+  const checkbox = createCheckbox(name, uniforms);
   const label = createLabel(name);
   
   header.appendChild(checkbox);
   header.appendChild(label);
 
-  if (effect.enabled) {
+  if (uniforms[0].defaultValue) {
     const moveControls = createMoveControls(name, enabledEffects);
     header.appendChild(moveControls);
   }
@@ -267,15 +267,15 @@ function createEffectHeader(name, effect, enabledEffects) {
   return header;
 }
 
-function createCheckbox(name, effect) {
+function createCheckbox(name, uniforms) {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.id = `effect-${name}`;
-  checkbox.checked = effect.enabled;
+  checkbox.checked = uniforms[0].defaultValue;
 
   checkbox.addEventListener('change', () => {
-    effect.enabled = checkbox.checked;
-    rebuildUIForEffect(name, effect);
+    uniforms[0].defaultValue = checkbox.checked;
+    rebuildUIForEffect();
   });
 
   return checkbox;
@@ -320,14 +320,14 @@ function createMoveButton(label, direction, onClick) {
   return button;
 }
 
-function createParamsContainer(name, effect) {
+function createParamsContainer(name, uniforms) {
   const paramsContainer = document.createElement('div');
   paramsContainer.className = 'params-container';
 
   // Add controls for each uniform parameter
-  for (const [uniformName, uniform] of Object.entries(effect.uniforms)) {
+  for (const [uniformName, uniform] of Object.entries(uniforms)) {
 
-    const paramControl = createUniformControl(name, effect, uniformName, uniform);
+    const paramControl = createUniformControl(name, uniformName, uniform);
     paramsContainer.appendChild(paramControl);
   }
 
@@ -667,7 +667,7 @@ function createUniformControl(name, effect, uniformName, uniform) {
   return null;
 }
 
-function rebuildUIForEffect(name, effect) {
+function rebuildUIForEffect() {
   buildUI(); // Rebuild UI to update move buttons
   setupPostProcessing(); // Re-apply post-processing effects if necessary
 }
@@ -734,7 +734,7 @@ async function setupPostProcessing() {
 
     if (effect.enabled) {
       try {
-        const shaderCode = await fetch(`effects/${name}.glsl`).then(r => r.text());
+        const shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
 
         const uniforms = {
           tDiffuse: { value: null },

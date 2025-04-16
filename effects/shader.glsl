@@ -5,50 +5,73 @@ uniform sampler2D uImage;
 uniform vec2 uResolution;
 varying vec2 vUv;
 
-// Effect toggles
-uniform bool uColorShiftEnabled;
-uniform bool uContrastChangeEnabled;
-uniform bool uFovReductionEnabled;
-uniform bool uInfillingEnabled;
-uniform bool uLightDegradationEnabled;
-uniform bool uRotationDistortionEnabled;
-uniform bool uSpatialDistortionEnabled;
-uniform bool uVisualAcuityLossEnabled;
+struct ColorShift {
+    bool isActive;
+    int order;
+    float severity;  // min: 0.0 max: 1.0 default: 0.5
+    int cvdType;     // dropdown: (Protanomaly, Deuteranomaly, Tritanomaly)
+};
 
-// Effect parameters
-// Color Shift
-uniform float uSeverity; // min: 0.0 max: 1.0 default: 0.5
-uniform int uCVDType;  // dropdown: (Protanomaly, Deuteranomaly, Tritanomaly)
+struct ContrastChange {
+    bool isActive;
+    int order;
+    float horizontalScale; // min: 0.0 max: 2.0 default: 1.0
+    float verticalScale;   // min: 0.0 max: 2.0 default: 1.0
+};
 
-// Contrast Change
-uniform float uHorizontalScale; // min: 0.0 max: 2.0 default: 1.0
-uniform float uVerticalScale; // min: 0.0 max: 2.0 default: 1.0
+struct FovReduction {
+    bool isActive;
+    int order;
+    float threshold; // min: 0.0 max: 1.0 default: 0.5
+};
 
-// FOV Reduction
-uniform float uFovThreshold; // min: 0.0 max: 1.0 default: 0.5
+struct Infilling {
+    bool isActive;
+    int order;
+    float infillX; // min: 0.001 max: 1.0 default: 0.5
+    float infillY; // min: 0.001 max: 1.0 default: 0.5
+    float infillSize; // min: 0.001 max: 10.0 default: 10.0
+};
 
-// Infilling
-uniform float uInfillX; // min: 0.001 max: 1.0 default: 0.5
-uniform float uInfillY; // min: 0.001 max: 1.0 default: 0.5
-uniform float uInfillSize; // min: 0.001 max: 10.0 default: 10.0
+struct LightDegradation {
+    bool isActive;
+    int order;
+    vec4 kernels[16]; // min: (0.0, 0.0, 0.0, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.05, 0.25)
+};
 
-// Light Degradation
-uniform vec4 uLightKernels[16]; // min: (0.0, 0.0, 0.0, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.05, 0.25)
+struct RotationDistortion {
+    bool isActive;
+    int order;
+    vec2 centers[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
+    float sigmas[3]; // min: 0.001 max: 1.0 default: 0.5
+    float weights[3]; // min: 0.0 max: 1.0 default: 0.5
+};
 
-// Rotation Distortion
-uniform vec2 uRotCenters[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
-uniform float uRotSigmas[3]; // min: 0.001 max: 1.0 default: 0.5
-uniform float uRotWeights[3]; // min: 0.0 max: 1.0 default: 0.5
+struct SpatialDistortion {
+    bool isActive;
+    int order;
+    vec2 centers[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
+    float sigmas[3]; // min: 0.001 max: 1.0 default: 0.5
+    float weights[3]; // min: 0.0 max: 1.0 default: 0.5
+};
 
-// Spatial Distortion
-uniform vec2 uSpatialCenters[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
-uniform float uSpatialSigmas[3]; // min: 0.001 max: 1.0 default: 0.5
-uniform float uSpatialWeights[3]; // min: 0.0 max: 1.0 default: 0.5
+struct VisualAcuityLoss {
+    bool isActive;
+    int order;
+    vec4 kernels[16]; // min: (0.0, 0.0, 0.001, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.1, 0.1)
+};
 
-// Visual Acuity Loss
-uniform vec4 uAcuityKernels[16]; // min: (0.0, 0.0, 0.001, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.1, 0.1)
+// Uniform instances
+uniform ColorShift colorShift;
+uniform ContrastChange contrastChange;
+uniform FovReduction fovReduction;
+uniform Infilling infilling;
+uniform LightDegradation lightDegradation;
+uniform RotationDistortion rotationDistortion;
+uniform SpatialDistortion spatialDistortion;
+uniform VisualAcuityLoss visualAcuityLoss;
 
-// Helper functions
+// Utility functions
 float gaussian(vec2 p, vec2 mu, float sigma) {
     vec2 diff = p - mu;
     float exponent = dot(diff, diff) / (2.0 * sigma * sigma);
@@ -58,10 +81,7 @@ float gaussian(vec2 p, vec2 mu, float sigma) {
 vec2 rotate(vec2 p, float angle) {
     float s = sin(angle);
     float c = cos(angle);
-    return vec2(
-        c * p.x - s * p.y,
-        s * p.x + c * p.y
-    );
+    return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
 }
 
 mat3 getProtanomalyMatrix(int level) {
@@ -112,128 +132,170 @@ mat3 getCVDMatrix(int type, int level) {
     else return getTritanomalyMatrix(level);
 }
 
+// Effect functions
+vec4 applySpatialDistortion(vec4 color, SpatialDistortion sd) {
+    if (!sd.isActive) return color;
+    vec2 uv = vUv;
+    for (int i = 0; i < 3; ++i) {
+        vec2 center = sd.centers[i];
+        float sigma = sd.sigmas[i];
+        float weight = sd.weights[i];
+        float falloff = gaussian(uv, center, sigma);
+        uv += weight * falloff * (uv - center);
+    }
+    return texture2D(uImage, uv);
+}
+
+vec4 applyRotationDistortion(vec4 color, RotationDistortion rd) {
+    if (!rd.isActive) return color;
+    vec2 uv = vUv;
+    vec2 p = uv * uResolution;
+    vec2 rotatedP = p;
+    for (int i = 0; i < 3; ++i) {
+        vec2 center = rd.centers[i];
+        float sigma = rd.sigmas[i];
+        float weight = rd.weights[i];
+        float falloff = gaussian(p, center, sigma);
+        float angle = weight * falloff;
+        vec2 relativeP = p - center;
+        vec2 rotated = rotate(relativeP, angle) + center;
+        rotatedP += (rotated - p);
+    }
+    uv = rotatedP / uResolution;
+    return texture2D(uImage, uv);
+}
+
+vec4 applyFovReduction(vec4 color, FovReduction fr) {
+    if (!fr.isActive) return color;
+    vec2 uv = vUv;
+    vec2 center = vec2(0.5, 0.5);
+    float maxZoom = 4.0;
+    float zoom = mix(1.0, maxZoom, fr.threshold);
+    uv = mix(center, uv, 1.0 / zoom);
+    return texture2D(uImage, uv);
+}
+
+vec4 applyInfilling(vec4 color, Infilling inf) {
+    if (!inf.isActive) return color;
+    vec2 uv = vUv;
+    vec2 center = vec2(inf.infillX, inf.infillY);
+    float dist = distance(uv, center);
+    if (dist <= inf.infillSize) {
+        vec2 texel = vec2(1.0) / uResolution;
+        float delta = inf.infillSize * min(uResolution.x, uResolution.y);
+        vec2 offset = vec2(delta) * texel;
+
+        vec3 up = texture2D(uImage, center + vec2(0.0, offset.y)).rgb;
+        vec3 right = texture2D(uImage, center + vec2(offset.x, 0.0)).rgb;
+        vec3 down = texture2D(uImage, center - vec2(0.0, offset.y)).rgb;
+        vec3 left = texture2D(uImage, center - vec2(offset.x, 0.0)).rgb;
+
+        float d1 = offset.y, d2 = offset.x, d3 = offset.y, d4 = offset.x;
+        float w1 = 1.0 / (d1 * d1 + 1e-6);
+        float w2 = 1.0 / (d2 * d2 + 1e-6);
+        float w3 = 1.0 / (d3 * d3 + 1e-6);
+        float w4 = 1.0 / (d4 * d4 + 1e-6);
+        float wSum = w1 + w2 + w3 + w4;
+
+        color.rgb = (up*w1 + right*w2 + down*w3 + left*w4) / wSum;
+    }
+    return color;
+}
+
+vec4 applyVisualAcuityLoss(vec4 color, VisualAcuityLoss val) {
+    if (!val.isActive) return color;
+    vec2 uv = vUv;
+    vec3 blurredColor = vec3(0.0);
+    float totalWeight = 0.0;
+    for (int i = 0; i < 16; ++i) {
+        vec4 kernel = val.kernels[i];
+        vec2 mu = vec2(kernel.x, kernel.y);
+        float sigma = kernel.z;
+        float omega = kernel.w;
+        float weight = gaussian(uv, mu, sigma);
+        blurredColor += omega * weight * texture2D(uImage, uv + mu).rgb;
+        totalWeight += omega * weight;
+    }
+    if (totalWeight > 0.0) {
+        color.rgb = blurredColor / totalWeight;
+    }
+    return color;
+}
+
+vec4 applyColorShift(vec4 color, ColorShift cs) {
+    if (!cs.isActive) return color;
+    float scaled = cs.severity * 10.0;
+    int lowLevel = int(floor(scaled));
+    int highLevel = min(lowLevel + 1, 10);
+    float t = fract(scaled);
+    mat3 lowMat = getCVDMatrix(cs.cvdType, lowLevel);
+    mat3 highMat = getCVDMatrix(cs.cvdType, highLevel);
+    mat3 cvd = mat3(
+        mix(lowMat[0], highMat[0], t),
+        mix(lowMat[1], highMat[1], t),
+        mix(lowMat[2], highMat[2], t)
+    );
+    color.rgb = cvd * color.rgb;
+    return color;
+}
+
+vec4 applyContrastChange(vec4 color, ContrastChange cc) {
+    if (!cc.isActive) return color;
+    color.rgb *= vec3(cc.horizontalScale, cc.verticalScale, 1.0);
+    return color;
+}
+
+vec4 applyLightDegradation(vec4 color, LightDegradation ld) {
+    if (!ld.isActive) return color;
+    vec2 uv = vUv;
+    float degradation = 0.0;
+    for (int i = 0; i < 16; ++i) {
+        vec4 kernel = ld.kernels[i];
+        vec2 mu = vec2(kernel.x, kernel.y);
+        float sigma = kernel.z;
+        float omega = kernel.w;
+        degradation += omega * gaussian(uv, mu, sigma);
+    }
+    color.rgb = mix(color.rgb, vec3(0.0), clamp(degradation, 0.0, 1.0));
+    return color;
+}
+
 void main() {
     vec2 uv = vUv;
     vec4 color = texture2D(uImage, uv);
 
-    // Apply effects in recommended order
-    
-    // 1. Spatial Distortion (warp coordinates first)
-    if (uSpatialDistortionEnabled) {
-        vec2 distortedUv = uv;
-        for (int i = 0; i < 3; ++i) {
-            vec2 center = uSpatialCenters[i];
-            float sigma = uSpatialSigmas[i];
-            float weight = uSpatialWeights[i];
-            float falloff = gaussian(uv, center, sigma);
-            distortedUv += weight * falloff * (uv - center);
-        }
-        uv = distortedUv;
-        color = texture2D(uImage, uv);
-    }
+    // Define an array of effect functions with their corresponding order values
+    struct Effect {
+        int order;
+        vec4 (*function)(vec4, void*);
+        void* params;
+    };
 
-    // 2. Rotation Distortion
-    if (uRotationDistortionEnabled) {
-        vec2 p = uv * uResolution;
-        vec2 rotatedP = p;
-        for (int i = 0; i < 3; ++i) {
-            vec2 center = uRotCenters[i];
-            float sigma = uRotSigmas[i];
-            float weight = uRotWeights[i];
-            float falloff = gaussian(p, center, sigma);
-            float angle = weight * falloff;
-            vec2 relativeP = p - center;
-            vec2 rotated = rotate(relativeP, angle) + center;
-            rotatedP += (rotated - p);
-        }
-        uv = rotatedP / uResolution;
-        color = texture2D(uImage, uv);
-    }
+    Effect effects[8] = {
+        {colorShift.order, (vec4(*)(vec4, void*))applyColorShift, &colorShift},
+        {contrastChange.order, (vec4(*)(vec4, void*))applyContrastChange, &contrastChange},
+        {fovReduction.order, (vec4(*)(vec4, void*))applyFovReduction, &fovReduction},
+        {infilling.order, (vec4(*)(vec4, void*))applyInfilling, &infilling},
+        {lightDegradation.order, (vec4(*)(vec4, void*))applyLightDegradation, &lightDegradation},
+        {rotationDistortion.order, (vec4(*)(vec4, void*))applyRotationDistortion, &rotationDistortion},
+        {spatialDistortion.order, (vec4(*)(vec4, void*))applySpatialDistortion, &spatialDistortion},
+        {visualAcuityLoss.order, (vec4(*)(vec4, void*))applyVisualAcuityLoss, &visualAcuityLoss}
+    };
 
-    // 3. FOV Reduction
-    if (uFovReductionEnabled) {
-        vec2 center = vec2(0.5, 0.5);
-        float maxZoom = 4.0;
-        float zoom = mix(1.0, maxZoom, uFovThreshold);
-        uv = mix(center, uv, 1.0 / zoom);
-        color = texture2D(uImage, uv);
-    }
-
-    // 4. Infilling
-    if (uInfillingEnabled) {
-        vec2 center = vec2(uInfillX, uInfillY);
-        float dist = distance(uv, center);
-        if (dist <= uInfillSize) {
-            vec2 texel = vec2(1.0) / uResolution;
-            float delta = uInfillSize * min(uResolution.x, uResolution.y);
-            vec2 offset = vec2(delta) * texel;
-
-            vec3 up = texture2D(uImage, center + vec2(0.0, offset.y)).rgb;
-            vec3 right = texture2D(uImage, center + vec2(offset.x, 0.0)).rgb;
-            vec3 down = texture2D(uImage, center - vec2(0.0, offset.y)).rgb;
-            vec3 left = texture2D(uImage, center - vec2(offset.x, 0.0)).rgb;
-
-            float d1 = offset.y, d2 = offset.x, d3 = offset.y, d4 = offset.x;
-            float w1 = 1.0 / (d1 * d1 + 1e-6);
-            float w2 = 1.0 / (d2 * d2 + 1e-6);
-            float w3 = 1.0 / (d3 * d3 + 1e-6);
-            float w4 = 1.0 / (d4 * d4 + 1e-6);
-            float wSum = w1 + w2 + w3 + w4;
-
-            color.rgb = (up*w1 + right*w2 + down*w3 + left*w4) / wSum;
+    // Sort the effects array based on the order values
+    for (int i = 0; i < 8; i++) {
+        for (int j = i + 1; j < 8; j++) {
+            if (effects[i].order > effects[j].order) {
+                Effect temp = effects[i];
+                effects[i] = effects[j];
+                effects[j] = temp;
+            }
         }
     }
 
-    // 5. Visual Acuity Loss (blur)
-    if (uVisualAcuityLossEnabled) {
-        vec3 blurredColor = vec3(0.0);
-        float totalWeight = 0.0;
-        for (int i = 0; i < 16; ++i) {
-            vec4 kernel = uAcuityKernels[i];
-            vec2 mu = vec2(kernel.x, kernel.y);
-            float sigma = kernel.z;
-            float omega = kernel.w;
-            float weight = gaussian(uv, mu, sigma);
-            blurredColor += omega * weight * texture2D(uImage, uv + mu).rgb;
-            totalWeight += omega * weight;
-        }
-        if (totalWeight > 0.0) {
-            color.rgb = blurredColor / totalWeight;
-        }
-    }
-
-    // 6. Color Shift
-    if (uColorShiftEnabled) {
-        float scaled = uSeverity * 10.0;
-        int lowLevel = int(floor(scaled));
-        int highLevel = min(lowLevel + 1, 10);
-        float t = fract(scaled);
-        mat3 lowMat = getCVDMatrix(uCVDType, lowLevel);
-        mat3 highMat = getCVDMatrix(uCVDType, highLevel);
-        mat3 cvd = mat3(
-            mix(lowMat[0], highMat[0], t),
-            mix(lowMat[1], highMat[1], t),
-            mix(lowMat[2], highMat[2], t)
-        );
-        color.rgb = cvd * color.rgb;
-    }
-
-    // 7. Contrast Change
-    if (uContrastChangeEnabled) {
-        color.rgb *= vec3(uHorizontalScale, uVerticalScale, 1.0);
-    }
-
-    // 8. Light Degradation
-    if (uLightDegradationEnabled) {
-        float degradation = 0.0;
-        for (int i = 0; i < 16; ++i) {
-            vec4 kernel = uLightKernels[i];
-            vec2 mu = vec2(kernel.x, kernel.y);
-            float sigma = kernel.z;
-            float omega = kernel.w;
-            degradation += omega * gaussian(uv, mu, sigma);
-        }
-        color.rgb = mix(color.rgb, vec3(0.0), clamp(degradation, 0.0, 1.0));
+    // Apply the effects in the sorted order
+    for (int i = 0; i < 8; i++) {
+        color = effects[i].function(color, effects[i].params);
     }
 
     gl_FragColor = color;
