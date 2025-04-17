@@ -264,25 +264,24 @@ void main() {
     vec2 uv = vUv;
     vec4 color = texture2D(uImage, uv);
 
-    // Define an array of effect functions with their corresponding order values
+     // --- Define effect order and type ---
     struct Effect {
         int order;
-        vec4 (*function)(vec4, void*);
-        void* params;
+        int type;  // 0=ColorShift, 1=ContrastChange, etc.
     };
 
-    Effect effects[8] = {
-        {colorShift.order, (vec4(*)(vec4, void*))applyColorShift, &colorShift},
-        {contrastChange.order, (vec4(*)(vec4, void*))applyContrastChange, &contrastChange},
-        {fovReduction.order, (vec4(*)(vec4, void*))applyFovReduction, &fovReduction},
-        {infilling.order, (vec4(*)(vec4, void*))applyInfilling, &infilling},
-        {lightDegradation.order, (vec4(*)(vec4, void*))applyLightDegradation, &lightDegradation},
-        {rotationDistortion.order, (vec4(*)(vec4, void*))applyRotationDistortion, &rotationDistortion},
-        {spatialDistortion.order, (vec4(*)(vec4, void*))applySpatialDistortion, &spatialDistortion},
-        {visualAcuityLoss.order, (vec4(*)(vec4, void*))applyVisualAcuityLoss, &visualAcuityLoss}
-    };
+    Effect effects[8] = Effect[8](
+        Effect(colorShift.order, 0),
+        Effect(contrastChange.order, 1),
+        Effect(fovReduction.order, 2),
+        Effect(infilling.order, 3),
+        Effect(lightDegradation.order, 4),
+        Effect(rotationDistortion.order, 5),
+        Effect(spatialDistortion.order, 6),
+        Effect(visualAcuityLoss.order, 7)
+    );
 
-    // Sort the effects array based on the order values
+    // --- Sort effects by order (bubble sort) ---
     for (int i = 0; i < 8; i++) {
         for (int j = i + 1; j < 8; j++) {
             if (effects[i].order > effects[j].order) {
@@ -293,9 +292,34 @@ void main() {
         }
     }
 
-    // Apply the effects in the sorted order
+    // --- Apply effects in sorted order ---
     for (int i = 0; i < 8; i++) {
-        color = effects[i].function(color, effects[i].params);
+        int effectType = effects[i].type;
+
+        if (effectType == 0) {
+            color = applyColorShift(color, colorShift);
+        } 
+        else if (effectType == 1) {
+            color = applyContrastChange(color, contrastChange);
+        }
+        else if (effectType == 2) {
+            color = applyFovReduction(color, fovReduction);
+        }
+        else if (effectType == 3) {
+            color = applyInfilling(color, infilling);
+        }
+        else if (effectType == 4) {
+            color = applyLightDegradation(color, lightDegradation);
+        }
+        else if (effectType == 5) {
+            color = applyRotationDistortion(color, rotationDistortion);
+        }
+        else if (effectType == 6) {
+            color = applySpatialDistortion(color, spatialDistortion);
+        }
+        else if (effectType == 7) {
+            color = applyVisualAcuityLoss(color, visualAcuityLoss);
+        }
     }
 
     gl_FragColor = color;

@@ -15,21 +15,28 @@ let texture;
 let shaderCode = null;
 let allUniforms = null;
 
+// Constants
+const SIDEBAR_WIDTH = 340;
+
 // Initialize the application
 async function init() {
-    shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
-    allUniforms = parseShaderUniforms(shaderCode);
-    // Build the UI
-    buildUI();
+    try {
+        shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
+        allUniforms = parseShaderUniforms(shaderCode);
+        // Build the UI
+        buildUI();
 
-    // Set up event listeners
-    setupEventListeners();
+        // Set up event listeners
+        setupEventListeners();
 
-    // Start animation loop
-    animate();
+        // Start animation loop
+        animate();
 
-    // Call this instead of the original default image loading code
-    await loadDefaultImage();
+        // Load default image
+        await loadDefaultImage();
+    } catch (error) {
+        console.error('Error initializing the application:', error);
+    }
 }
 
 function extractUniformData(match, effectBody, floatMatches, intMatches) {
@@ -200,10 +207,10 @@ function createArray(length, defaultValue) {
 async function buildUI() {
   const container = document.getElementById('effectsContainer');
   container.innerHTML = '';
-  
+
   // Get list of enabled effects in current order
   const enabledEffects = getEnabledEffects();
-  
+
   for (const [effectName, effectUniforms] of Object.entries(allUniforms)) {
     const div = createEffectDiv(effectName, effectUniforms, enabledEffects);
     container.appendChild(div);
@@ -230,7 +237,7 @@ function createEffectDiv(name, uniforms, enabledEffects) {
   const header = createEffectHeader(name, uniforms, enabledEffects);
   div.appendChild(header);
 
-  const paramsContainer = createParamsContainer(name, uniforms);
+  const paramsContainer = createParamsContainer(name, uniforms.filter(uniform => uniform.name !== 'isActive' && uniform.name !== 'order'));
   div.appendChild(paramsContainer);
 
   // Initialize visibility
@@ -246,7 +253,7 @@ function createEffectHeader(name, uniforms, enabledEffects) {
 
   const checkbox = createCheckbox(name, uniforms);
   const label = createLabel(name);
-  
+
   header.appendChild(checkbox);
   header.appendChild(label);
 
@@ -266,6 +273,7 @@ function createCheckbox(name, uniforms) {
 
   checkbox.addEventListener('change', () => {
     uniforms[0].value = checkbox.checked;
+    updateEffects();
     buildUI();
   });
 
@@ -317,7 +325,6 @@ function createParamsContainer(name, uniforms) {
 
   // Add controls for each uniform parameter
   for (const [uniformIndex, uniform] of Object.entries(uniforms)) {
-
     const paramControl = createUniformControl(name, uniform);
     paramsContainer.appendChild(paramControl);
   }
@@ -334,7 +341,7 @@ function createDropdownControl(uniformName, value, options, onChange) {
 
   const select = document.createElement('select');
   select.value = value;
-  
+
   // Add options to the dropdown
   options.forEach((option, index) => {
     const optionElement = document.createElement('option');
@@ -353,7 +360,7 @@ function createDropdownControl(uniformName, value, options, onChange) {
   return container;
 }
 
-function createArrayDropdown(uniform, updateEffect) {
+function createArrayDropdown(uniform) {
   const container = document.createElement('div');
   container.className = 'array-dropdown-container';
 
@@ -405,8 +412,8 @@ function createArrayDropdown(uniform, updateEffect) {
         uniform.max,
         uniform.step,
         (newValue) => {
-          arrayValues[selectedIndex] = newValue;
-          updateEffect();
+          uniform.value[selectedIndex] = newValue;
+          updateEffects();
         }
       );
       controlsContainer.appendChild(slider);
@@ -416,8 +423,8 @@ function createArrayDropdown(uniform, updateEffect) {
       checkbox.type = 'checkbox';
       checkbox.checked = selectedValue;
       checkbox.addEventListener('change', (e) => {
-        arrayValues[selectedIndex] = e.target.checked;
-        updateEffect();
+        uniform.value[selectedIndex] = e.target.checked;
+        updateEffects();
       });
       controlsContainer.appendChild(checkbox);
     }
@@ -469,13 +476,13 @@ function createVectorControls(uniformName, params, vectorLength, min, max, step)
     let control;
 
     if (['bvec2', 'bvec3', 'bvec4'].includes(params.type)) {
-      // TODO For bvec types (booleans), create checkboxes
+      // For bvec types (booleans), create checkboxes
       control = document.createElement('input');
       control.type = 'checkbox';
       control.checked = params[i] || false;
       control.addEventListener('change', (e) => {
         params[i] = e.target.checked;
-        updateEffect(uniformName);
+        updateEffects();
       });
     } else if (['ivec2', 'ivec3', 'ivec4'].includes(params.type)) {
       // For ivec types (integers), create integer sliders
@@ -487,7 +494,7 @@ function createVectorControls(uniformName, params, vectorLength, min, max, step)
         step,
         (newValue) => {
           params[i] = newValue;
-          updateEffect(uniformName);
+          updateEffects();
         }
       );
     } else {
@@ -500,18 +507,18 @@ function createVectorControls(uniformName, params, vectorLength, min, max, step)
         step,
         (newValue) => {
           params[i] = newValue;
-          updateEffect(uniformName);
+          updateEffects();
         }
       );
     }
 
     // Append the label and control
+    container.appendChild(label);
     container.appendChild(control);
   }
 
   return container;
 }
-
 
 function createBoolControl(uniformName, value) {
   const container = document.createElement('div');
@@ -525,7 +532,7 @@ function createBoolControl(uniformName, value) {
   checkbox.checked = value;
   checkbox.addEventListener('change', (e) => {
     value = e.target.checked;
-    updateEffect(uniformName);
+    updateEffects();
   });
 
   container.appendChild(label);
@@ -553,7 +560,7 @@ function createMatrixControls(uniformName, value, size, min, max, step) {
       input.step = step;
       input.addEventListener('input', (e) => {
         matrix.elements[i * size + j] = parseFloat(e.target.value);
-        updateEffect(uniformName);
+        updateEffects();
       });
       container.appendChild(input);
     }
@@ -609,34 +616,33 @@ function createSliderControl(labelText, value, min, max, step, onChange) {
 }
 
 function createUniformControl(effectName, uniform) {
-  
   if (uniform.dropdownOptions) {
     return createDropdownControl(
-      uniformName,
-      effect.params[uniformName] || 0,
+      uniform.name,
+      uniform.value || 0,
       uniform.dropdownOptions,
       (newValue) => {
-        effect.params[uniformName] = newValue;
-        updateEffect(name);
+        uniform.value = newValue;
+        updateEffects();
       }
     );
   }
   // Handle array types (create dropdown)
   if (uniform.array) {
-    return createArrayDropdown(uniform, updateEffect);
+    return createArrayDropdown(uniform, () => updateEffects());
   }
 
   // Handle vector types (vec2, vec3, vec4, bvec, ivec)
   if (['vec2', 'vec3', 'vec4', 'bvec2', 'bvec3', 'bvec4', 'ivec2', 'ivec3', 'ivec4'].includes(uniform.type)) {
     const vectorLength = getVectorLength(uniform.type);
-    return createVectorControls(uniform);
+    return createVectorControls(uniform.name, uniform.value, vectorLength, uniform.min, uniform.max, uniform.step);
   }
 
   // Handle int and float types (both use sliders)
   if (uniform.type === 'int' || uniform.type === 'float') {
     return createSliderControl(uniform.name, uniform.value || uniform.defaultValue, uniform.min, uniform.max, uniform.step, (newValue) => {
       uniform.value = newValue;
-      updateEffect(effectName);
+      updateEffects();
     });
   }
 
@@ -658,79 +664,113 @@ function createUniformControl(effectName, uniform) {
 
 // Move an effect up in the order
 function moveEffectUp(name, order) {
-  const enabledEffects = effectOrder.filter(n => effectsState[n].enabled);
-  const currentIndex = enabledEffects.indexOf(name);
-  
-  if (currentIndex > 0) {
-    // Swap in the full effectOrder array
-    const allIndex = effectOrder.indexOf(name);
-    const prevIndex = effectOrder.indexOf(enabledEffects[currentIndex - 1]);
-    
-    // Swap the elements
-    [effectOrder[allIndex], effectOrder[prevIndex]] = [effectOrder[prevIndex], effectOrder[allIndex]];
-    
-    // Rebuild UI and processing pipeline
+  const enabledEffects = getEnabledEffects();
+  if (order > 0) {
+    // Swap the current effect with the one above it
+    [enabledEffects[order], enabledEffects[order - 1]] = [enabledEffects[order - 1], enabledEffects[order]];
     buildUI();
-    setupPostProcessing();
   }
 }
 
 // Move an effect down in the order
-function moveEffectDown(name) {
-  const enabledEffects = effectOrder.filter(n => effectsState[n].enabled);
-  const currentIndex = enabledEffects.indexOf(name);
-  
-  if (currentIndex < enabledEffects.length - 1) {
-    // Swap in the full effectOrder array
-    const allIndex = effectOrder.indexOf(name);
-    const nextIndex = effectOrder.indexOf(enabledEffects[currentIndex + 1]);
-    
-    // Swap the elements
-    [effectOrder[allIndex], effectOrder[nextIndex]] = [effectOrder[nextIndex], effectOrder[allIndex]];
-    
-    // Rebuild UI and processing pipeline
+function moveEffectDown(name, order) {
+  const enabledEffects = getEnabledEffects();
+  if (order < enabledEffects.length - 1) {
+    // Swap the current effect with the one below it
+    [enabledEffects[order], enabledEffects[order + 1]] = [enabledEffects[order + 1], enabledEffects[order]];
     buildUI();
-    setupPostProcessing();
   }
 }
 
-function updateEffect(name) {
-  if (shaderPasses[name]) {
-    const pass = shaderPasses[name];
-    const effect = effectsState[name];
+function updateEffects() {
+  if (!imageMesh.material || !imageMesh.material.uniforms) return;
 
-    Object.keys(effect.params).forEach(param => {
-      if (pass.uniforms[param]) {
-        if (effect.params[param] !== undefined) {
-          if (Array.isArray(effect.params[param])) {
-            pass.uniforms[param].value = effect.params[param].map(val => {
-              if (val instanceof THREE.Vector2 || val instanceof THREE.Vector3 || val instanceof THREE.Vector4) {
-                return val.clone();
-              }
-              return val;
-            });
-          } else if (effect.params[param] instanceof THREE.Vector2 || effect.params[param] instanceof THREE.Vector3 || effect.params[param] instanceof THREE.Vector4) {
-            pass.uniforms[param].value = effect.params[param].clone();
-          } else {
-            pass.uniforms[param].value = effect.params[param];
-          }
-        } else {
-          console.error(`Parameter ${param} is undefined for effect ${name}`);
-        }
-      }
-    });
-  } else {
-    setupPostProcessing();
+  const uniforms = imageMesh.material.uniforms;
+
+  // Update ColorShift uniform
+  if (uniforms.colorShift) {
+    uniforms.colorShift.value.isActive = allUniforms["ColorShift"][0].value;
+    uniforms.colorShift.value.order = allUniforms["ColorShift"][1].value;
+    uniforms.colorShift.value.severity = allUniforms["ColorShift"][2].value;
+    uniforms.colorShift.value.cvdType = allUniforms["ColorShift"][3].value;
+  }
+
+  // Update ContrastChange uniform
+  if (uniforms.contrastChange) {
+    uniforms.contrastChange.value.isActive = allUniforms["ContrastChange"][0].value;
+    uniforms.contrastChange.value.order = allUniforms["ContrastChange"][1].value;
+    uniforms.contrastChange.value.horizontalScale = allUniforms["ContrastChange"][2].value;
+    uniforms.contrastChange.value.verticalScale = allUniforms["ContrastChange"][3].value;
+  }
+
+  // Update FovReduction uniform
+  if (uniforms.fovReduction) {
+    uniforms.fovReduction.value.isActive = allUniforms["FovReduction"][0].value;
+    uniforms.fovReduction.value.order = allUniforms["FovReduction"][1].value;
+    uniforms.fovReduction.value.threshold = allUniforms["FovReduction"][2].value;
+  }
+
+  // Update Infilling uniform
+  if (uniforms.infilling) {
+    uniforms.infilling.value.isActive = allUniforms["Infilling"][0].value;
+    uniforms.infilling.value.order = allUniforms["Infilling"][1].value;
+    uniforms.infilling.value.infillX = allUniforms["Infilling"][2].value;
+    uniforms.infilling.value.infillY = allUniforms["Infilling"][3].value;
+    uniforms.infilling.value.infillSize = allUniforms["Infilling"][4].value;
+  }
+
+  // Update LightDegradation uniform
+  if (uniforms.lightDegradation) {
+    const kernels = allUniforms["LightDegradation"][2].value; // Assuming 'kernels' is at index 2 for this effect
+    uniforms.lightDegradation.value.isActive = allUniforms["LightDegradation"][0].value;
+    uniforms.lightDegradation.value.order = allUniforms["LightDegradation"][1].value;
+    uniforms.lightDegradation.value.kernels = kernels.map((kernelData) => new THREE.Vector4(kernelData.x, kernelData.y, kernelData.z, kernelData.w));
+  }
+
+  // Update RotationDistortion uniform
+  if (uniforms.rotationDistortion) {
+    uniforms.rotationDistortion.value.isActive = allUniforms["RotationDistortion"][0].value;
+    uniforms.rotationDistortion.value.order = allUniforms["RotationDistortion"][1].value;
+    uniforms.rotationDistortion.value.centers = allUniforms["RotationDistortion"][2].value.map(
+      (center) => new THREE.Vector2(center.x, center.y)
+    );
+    uniforms.rotationDistortion.value.sigmas = allUniforms["RotationDistortion"][3].value;
+    uniforms.rotationDistortion.value.weights = allUniforms["RotationDistortion"][4].value;
+  }
+
+  // Update SpatialDistortion uniform
+  if (uniforms.spatialDistortion) {
+    uniforms.spatialDistortion.value.isActive = allUniforms["SpatialDistortion"][0].value;
+    uniforms.spatialDistortion.value.order = allUniforms["SpatialDistortion"][1].value;
+    uniforms.spatialDistortion.value.centers = allUniforms["SpatialDistortion"][2].value.map(
+      (center) => new THREE.Vector2(center.x, center.y)
+    );
+    uniforms.spatialDistortion.value.sigmas = allUniforms["SpatialDistortion"][3].value;
+    uniforms.spatialDistortion.value.weights = allUniforms["SpatialDistortion"][4].value;
+  }
+
+  // Update VisualAcuityLoss uniform
+  if (uniforms.visualAcuityLoss) {
+    const kernels = allUniforms["VisualAcuityLoss"][2].value; // Assuming 'kernels' is at index 2 for this effect
+    uniforms.visualAcuityLoss.value.isActive = allUniforms["VisualAcuityLoss"][0].value;
+    uniforms.visualAcuityLoss.value.order = allUniforms["VisualAcuityLoss"][1].value;
+    uniforms.visualAcuityLoss.value.kernels = kernels.map((kernelData) => new THREE.Vector4(kernelData.x, kernelData.y, kernelData.z, kernelData.w));
+  }
+
+  // Mark all uniforms for update
+  for (let effect in uniforms) {
+    uniforms[effect].needsUpdate = true;
   }
 }
+
 
 function updateCameraAndRenderer(imgWidth, imgHeight) {
   const aspectRatio = imgWidth / imgHeight;
-  const canvasAspect = (window.innerWidth - 340) / window.innerHeight; // Account for sidebar
-  
+  const canvasAspect = (window.innerWidth - SIDEBAR_WIDTH) / window.innerHeight; // Account for sidebar
+
   // Update renderer size
-  renderer.setSize(window.innerWidth - 340, window.innerHeight);
-  
+  renderer.setSize(window.innerWidth - SIDEBAR_WIDTH, window.innerHeight);
+
   // Update camera to maintain image aspect ratio
   if (aspectRatio > canvasAspect) {
     // Image is wider than canvas
@@ -747,9 +787,8 @@ function updateCameraAndRenderer(imgWidth, imgHeight) {
     camera.top = 1;
     camera.bottom = -1;
   }
-  
+
   camera.updateProjectionMatrix();
-  //if (composer) composer.setSize(window.innerWidth - 340, window.innerHeight);
 }
 
 // Update your window resize handler
@@ -757,20 +796,18 @@ window.addEventListener('resize', () => {
   if (texture) {
     updateCameraAndRenderer(texture.image.width, texture.image.height);
   } else {
-    renderer.setSize(window.innerWidth - 340, window.innerHeight);
-    if (composer) composer.setSize(window.innerWidth - 340, window.innerHeight);
+    renderer.setSize(window.innerWidth - SIDEBAR_WIDTH, window.innerHeight);
   }
 });
 
 // Animation loop
 function animate() {
-  requestAnimationFrame(animate);
-  //if (composer) composer.render();
+  requestAnimationFrame(animate);  
+  renderer.render(scene, camera);
 }
 
 // Set up event listeners
 function setupEventListeners() {
-  // Image loader
   document.getElementById('imageLoader').addEventListener('change', e => {
     if (e.target.files[0]) loadImage(e.target.files[0]);
   });
@@ -778,23 +815,15 @@ function setupEventListeners() {
   // Export configuration
   document.getElementById('exportBtn').addEventListener('click', () => {
     const config = {
-      effectOrder,
-      effectsState: Object.fromEntries(
-        Object.entries(effectsState).map(([name, state]) => [
-          name, 
-          {
-            enabled: state.enabled,
-            params: state.params
-          }
-        ])
-      )
+      effects: allUniforms,
+      // Add other configuration data as needed
     };
-    
+
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'low_vis_config.json';
+    a.download = 'config.json';
     a.click();
   });
 
@@ -802,26 +831,14 @@ function setupEventListeners() {
   document.getElementById('importConfig').addEventListener('change', e => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
     reader.onload = async () => {
       try {
         const data = JSON.parse(reader.result);
-        
-        // Update effect order
-        effectOrder = data.effectOrder || effectOrder;
-        
-        // Update effect states
-        for (const [name, state] of Object.entries(data.effectsState || {})) {
-          if (effectsState[name]) {
-            effectsState[name].enabled = state.enabled;
-            effectsState[name].params = state.params;
-          }
-        }
-        
+        allUniforms = data.effects;
         // Rebuild UI and processing pipeline
         await buildUI();
-        setupPostProcessing();
       } catch (err) {
         alert('Invalid config file!');
         console.error(err);
@@ -832,21 +849,80 @@ function setupEventListeners() {
 
   // Handle window resize
   window.addEventListener('resize', () => {
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    if (composer) {
-      composer.setSize(window.innerWidth, window.innerHeight);
-    }
+    renderer.setSize(window.innerWidth - SIDEBAR_WIDTH, window.innerHeight);
   });
 }
 
-
-// Function to create a plane with the given texture
 function createPlane(texture) {
-  const geometry = new THREE.PlaneGeometry(2, 2); // Adjust the size as needed
+  const geometry = new THREE.PlaneGeometry(2, 2);
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      texture: { value: texture },
-      ...allUniforms // Spread any additional uniforms if needed
+      uImage: { value: texture },
+      uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+      colorShift: {
+        value: {
+          isActive: false,
+          order: 0,
+          severity: 0.5,
+          cvdType: 0
+        }
+      },
+      contrastChange: {
+        value: {
+          isActive: false,
+          order: 0,
+          horizontalScale: 1.0,
+          verticalScale: 1.0
+        }
+      },
+      fovReduction: {
+        value: {
+          isActive: false,
+          order: 0,
+          threshold: 0.5
+        }
+      },
+      infilling: {
+        value: {
+          isActive: false,
+          order: 0,
+          infillX: 0.5,
+          infillY: 0.5,
+          infillSize: 10.0
+        }
+      },
+      lightDegradation: {
+        value: {
+          isActive: false,
+          order: 0,
+          kernels: Array.from({ length: 16 }, () => new THREE.Vector4(0.5, 0.5, 0.05, 0.25))
+        }
+      },
+      rotationDistortion: {
+        value: {
+          isActive: false,
+          order: 0,
+          centers: [new THREE.Vector2(0, 0), new THREE.Vector2(0, 0), new THREE.Vector2(0, 0)],
+          sigmas: [0.5, 0.5, 0.5],
+          weights: [0.5, 0.5, 0.5]
+        }
+      },
+      spatialDistortion: {
+        value: {
+          isActive: false,
+          order: 0,
+          centers: [new THREE.Vector2(0, 0), new THREE.Vector2(0, 0), new THREE.Vector2(0, 0)],
+          sigmas: [0.5, 0.5, 0.5],
+          weights: [0.5, 0.5, 0.5]
+        }
+      },
+      visualAcuityLoss: {
+        value: {
+          isActive: false,
+          order: 0,
+          kernels: Array.from({ length: 16 }, () => new THREE.Vector4(0.5, 0.5, 0.1, 0.1))
+        }
+      }
     },
     vertexShader: `
       varying vec2 vUv;
@@ -855,11 +931,12 @@ function createPlane(texture) {
         gl_Position = vec4(position, 1.0);
       }
     `,
-    fragmentShader: shaderCode // Use the global shaderCode variable
+    fragmentShader: shaderCode
   });
-  const plane = new THREE.Mesh(geometry, material);
-  return plane;
+
+  return new THREE.Mesh(geometry, material);
 }
+
 
 function loadImage(file) {
   const loader = new THREE.TextureLoader();
@@ -877,6 +954,7 @@ function loadImage(file) {
 
       imageMesh = createPlane(texture);
       scene.add(imageMesh);
+      updateCameraAndRenderer(texture.image.width, texture.image.height);
     },
     undefined,
     (error) => {
@@ -899,6 +977,7 @@ async function loadDefaultImage() {
 
       imageMesh = createPlane(texture);
       scene.add(imageMesh);
+      updateCameraAndRenderer(texture.image.width, texture.image.height);
     },
     undefined,
     (error) => {
