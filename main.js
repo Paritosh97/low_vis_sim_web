@@ -8,7 +8,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 // Three.js Scene Setup
 const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-const loader = new THREE.TextureLoader();
 
 // Global Variables
 let imageMesh;
@@ -31,11 +30,6 @@ async function init() {
 
     // Call this instead of the original default image loading code
     await loadDefaultImage();
-
-    const material = new THREE.MeshBasicMaterial({ map: texture });
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    imageMesh = new THREE.Mesh(geometry, material);
-    scene.add(imageMesh);
 }
 
 function extractUniformData(match, effectBody, floatMatches, intMatches) {
@@ -206,8 +200,6 @@ function createArray(length, defaultValue) {
 async function buildUI() {
   const container = document.getElementById('effectsContainer');
   container.innerHTML = '';
-
-  console.log(allUniforms);
   
   // Get list of enabled effects in current order
   const enabledEffects = getEnabledEffects();
@@ -222,14 +214,13 @@ function getEnabledEffects() {
   const enabledEffects = [];
 
   for (const [effectName, effectUniforms] of Object.entries(allUniforms)) {
-    if (effectUniforms[0].defaultValue === true) {
+    if (effectUniforms[0].value === true) {
       enabledEffects.push(effectName);
     }
   }
 
   return enabledEffects;
 }
-
 
 function createEffectDiv(name, uniforms, enabledEffects) {
   const div = document.createElement('div');
@@ -243,8 +234,8 @@ function createEffectDiv(name, uniforms, enabledEffects) {
   div.appendChild(paramsContainer);
 
   // Initialize visibility
-  //paramsContainer.style.maxHeight = effect.enabled ? '500px' : '0';
-  //paramsContainer.style.paddingTop = effect.enabled ? '10px' : '0';
+  paramsContainer.style.maxHeight = uniforms[0].value ? '500px' : '0';
+  paramsContainer.style.paddingTop = uniforms[0].value ? '10px' : '0';
 
   return div;
 }
@@ -259,8 +250,8 @@ function createEffectHeader(name, uniforms, enabledEffects) {
   header.appendChild(checkbox);
   header.appendChild(label);
 
-  if (uniforms[0].defaultValue) {
-    const moveControls = createMoveControls(name, enabledEffects);
+  if (uniforms[0].value) {
+    const moveControls = createMoveControls(name, uniforms[1].value);
     header.appendChild(moveControls);
   }
 
@@ -274,8 +265,8 @@ function createCheckbox(name, uniforms) {
   checkbox.checked = uniforms[0].defaultValue;
 
   checkbox.addEventListener('change', () => {
-    uniforms[0].defaultValue = checkbox.checked;
-    rebuildUIForEffect();
+    uniforms[0].value = checkbox.checked;
+    buildUI();
   });
 
   return checkbox;
@@ -289,19 +280,19 @@ function createLabel(name) {
   return label;
 }
 
-function createMoveControls(name, enabledEffects) {
+function createMoveControls(name, order) {
   const moveControls = document.createElement('div');
   moveControls.className = 'move-controls';
 
   // Up button (not shown for first enabled effect)
-  if (enabledEffects.indexOf(name) > 0) {
-    const upBtn = createMoveButton('↑', 'up', () => moveEffectUp(name));
+  if (order > 0) {
+    const upBtn = createMoveButton('↑', 'up', () => moveEffectUp(name, order));
     moveControls.appendChild(upBtn);
   }
 
   // Down button (not shown for last enabled effect)
-  if (enabledEffects.indexOf(name) < enabledEffects.length - 1) {
-    const downBtn = createMoveButton('↓', 'down', () => moveEffectDown(name));
+  if (order < 7) {
+    const downBtn = createMoveButton('↓', 'down', () => moveEffectDown(name, order));
     moveControls.appendChild(downBtn);
   }
 
@@ -325,9 +316,9 @@ function createParamsContainer(name, uniforms) {
   paramsContainer.className = 'params-container';
 
   // Add controls for each uniform parameter
-  for (const [uniformName, uniform] of Object.entries(uniforms)) {
+  for (const [uniformIndex, uniform] of Object.entries(uniforms)) {
 
-    const paramControl = createUniformControl(name, uniformName, uniform);
+    const paramControl = createUniformControl(name, uniform);
     paramsContainer.appendChild(paramControl);
   }
 
@@ -362,21 +353,21 @@ function createDropdownControl(uniformName, value, options, onChange) {
   return container;
 }
 
-function createArrayDropdown(uniformName, arrayValues, effect, updateEffect, uniform) {
+function createArrayDropdown(uniform, updateEffect) {
   const container = document.createElement('div');
   container.className = 'array-dropdown-container';
 
   // Label for the dropdown
   const label = document.createElement('label');
-  label.textContent = uniformName;
+  label.textContent = uniform.name;
   container.appendChild(label);
 
   // Dropdown (select element)
   const dropdown = document.createElement('select');
-  dropdown.id = `${uniformName}-dropdown`;
+  dropdown.id = `${uniform.name}-dropdown`;
 
   // Add options (using "Element 0", "Element 1", etc.)
-  arrayValues.forEach((_, index) => {
+  uniform.value.forEach((_, index) => {
     const option = document.createElement('option');
     option.value = index;
     option.textContent = `Element ${index}`;
@@ -390,14 +381,14 @@ function createArrayDropdown(uniformName, arrayValues, effect, updateEffect, uni
   // Function to update controls based on selected value
   const updateControls = (selectedIndex) => {
     controlsContainer.innerHTML = ''; // Clear previous controls
-    const selectedValue = arrayValues[selectedIndex];
+    const selectedValue = uniform.value[selectedIndex];
 
     if (Array.isArray(selectedValue)) {
       // Vector types (vec2, vec3, etc.)
       const vectorLength = selectedValue.length;
       const vectorType = uniform.type.replace('[]', ''); // e.g., "vec3[]" → "vec3"
       const vectorControls = createVectorControls(
-        `${uniformName}[${selectedIndex}]`, // Label like "myArray[0]"
+        `${uniform.name}[${selectedIndex}]`, // Label like "myArray[0]"
         selectedValue,
         vectorLength,
         uniform.min,
@@ -408,7 +399,7 @@ function createArrayDropdown(uniformName, arrayValues, effect, updateEffect, uni
     } else if (typeof selectedValue === 'number') {
       // Single number (float/int)
       const slider = createSliderControl(
-        `${uniformName}[${selectedIndex}]`, // Label like "myArray[0]"
+        `${uniform.name}[${selectedIndex}]`, // Label like "myArray[0]"
         selectedValue,
         uniform.min,
         uniform.max,
@@ -617,8 +608,8 @@ function createSliderControl(labelText, value, min, max, step, onChange) {
   return container;
 }
 
-
-function createUniformControl(name, effect, uniformName, uniform) {
+function createUniformControl(effectName, uniform) {
+  
   if (uniform.dropdownOptions) {
     return createDropdownControl(
       uniformName,
@@ -631,35 +622,33 @@ function createUniformControl(name, effect, uniformName, uniform) {
     );
   }
   // Handle array types (create dropdown)
-  if (Array.isArray(effect.params[uniformName])) {
-    return createArrayDropdown(uniformName, effect.params[uniformName], effect, updateEffect, uniform);
+  if (uniform.array) {
+    return createArrayDropdown(uniform, updateEffect);
   }
 
   // Handle vector types (vec2, vec3, vec4, bvec, ivec)
   if (['vec2', 'vec3', 'vec4', 'bvec2', 'bvec3', 'bvec4', 'ivec2', 'ivec3', 'ivec4'].includes(uniform.type)) {
     const vectorLength = getVectorLength(uniform.type);
-    return createVectorControls(uniformName, effect.params[uniformName], vectorLength, uniform.min, uniform.max, uniform.step);
+    return createVectorControls(uniform);
   }
 
   // Handle int and float types (both use sliders)
   if (uniform.type === 'int' || uniform.type === 'float') {
-    return createSliderControl(uniformName, effect.params[uniformName] || uniform.defaultValue, uniform.min, uniform.max, uniform.step, (newValue) => {
-      effect.params[uniformName] = newValue;
-      updateEffect(name);
+    return createSliderControl(uniform.name, uniform.value || uniform.defaultValue, uniform.min, uniform.max, uniform.step, (newValue) => {
+      uniform.value = newValue;
+      updateEffect(effectName);
     });
   }
 
   // Handle bool types (checkbox)
   if (uniform.type === 'bool') {
-    // TODO fix
-    return createBoolControl(uniformName, effect.params[uniformName] || uniform.defaultValue);
+    return createBoolControl(uniform.name, uniform.value || uniform.defaultValue);
   }
 
   // Handle matrix types (mat2, mat3, mat4)
   if (uniform.type.startsWith('mat')) {
     const size = parseInt(uniform.type.charAt(3), 10); // mat2 -> 2, mat3 -> 3, mat4 -> 4
-    // TODO fix
-    return createMatrixControls(uniformName, effect.params[uniformName], size, uniform.min, uniform.max, uniform.step);
+    return createMatrixControls(uniform.name, uniform.value, size, uniform.min, uniform.max, uniform.step);
   }
 
   // If no matching type is found, log a warning (you can handle it as needed)
@@ -667,14 +656,8 @@ function createUniformControl(name, effect, uniformName, uniform) {
   return null;
 }
 
-function rebuildUIForEffect() {
-  buildUI(); // Rebuild UI to update move buttons
-  setupPostProcessing(); // Re-apply post-processing effects if necessary
-}
-
-
 // Move an effect up in the order
-function moveEffectUp(name) {
+function moveEffectUp(name, order) {
   const enabledEffects = effectOrder.filter(n => effectsState[n].enabled);
   const currentIndex = enabledEffects.indexOf(name);
   
@@ -711,87 +694,6 @@ function moveEffectDown(name) {
   }
 }
 
-async function setupPostProcessing() {
-  if (!texture) return;
-
-  // Clear existing passes
-  if (composer) {
-    composer.passes = [];
-  } else {
-    composer = new EffectComposer(renderer);
-  }
-
-  // Add render pass
-  composer.addPass(new RenderPass(scene, camera));
-
-  // Add enabled effects in current order
-  for (const name of effectOrder) {
-    const effect = effectsState[name];
-    if (!effect) {
-      console.error(`Effect state for ${name} is undefined.`);
-      continue;
-    }
-
-    if (effect.enabled) {
-      try {
-        const shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
-
-        const uniforms = {
-          tDiffuse: { value: null },
-          uImage: { value: texture },
-          uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
-        };
-
-        // Add all parameters to uniforms
-        Object.keys(effect.params).forEach(param => {
-          if (Array.isArray(effect.params[param])) {
-            uniforms[param] = {
-              value: effect.params[param].map(val => {
-                if (Array.isArray(val)) {
-                  switch (val.length) {
-                    case 2: return new THREE.Vector2(...val);
-                    case 3: return new THREE.Vector3(...val);
-                    case 4: return new THREE.Vector4(...val);
-                    default: return val;
-                  }
-                }
-                return val; // e.g. for float arrays
-              })
-            };
-          } else {
-            uniforms[param] = { value: effect.params[param] };
-          }
-        });
-
-        const shader = new ShaderPass({
-          uniforms,
-          vertexShader: `
-            varying vec2 vUv;
-            void main() {
-              vUv = uv;
-              gl_Position = vec4(position, 1.0);
-            }
-          `,
-          fragmentShader: shaderCode
-        });
-
-        composer.addPass(shader);
-        shaderPasses[name] = shader;
-        //console.log(`Shader pass for effect ${name} added.`); // Debug log
-      } catch (error) {
-        console.error(`Error setting up effect ${name}:`, error);
-      }
-    } else {
-      // Remove pass if disabled
-      if (shaderPasses[name]) {
-        delete shaderPasses[name];
-      }
-    }
-  }
-}
-
-
-
 function updateEffect(name) {
   if (shaderPasses[name]) {
     const pass = shaderPasses[name];
@@ -822,20 +724,6 @@ function updateEffect(name) {
   }
 }
 
-
-function loadImage(file) {
-  const url = URL.createObjectURL(file);
-  loader.load(url, tex => {
-    texture = tex;
-    if (imageMesh) scene.remove(imageMesh);
-    createPlane(tex);
-    setupPostProcessing();
-    
-    // Update camera and renderer to maintain aspect ratio
-    updateCameraAndRenderer(tex.image.width, tex.image.height);
-  });
-}
-
 function updateCameraAndRenderer(imgWidth, imgHeight) {
   const aspectRatio = imgWidth / imgHeight;
   const canvasAspect = (window.innerWidth - 340) / window.innerHeight; // Account for sidebar
@@ -861,7 +749,7 @@ function updateCameraAndRenderer(imgWidth, imgHeight) {
   }
   
   camera.updateProjectionMatrix();
-  if (composer) composer.setSize(window.innerWidth - 340, window.innerHeight);
+  //if (composer) composer.setSize(window.innerWidth - 340, window.innerHeight);
 }
 
 // Update your window resize handler
@@ -874,19 +762,10 @@ window.addEventListener('resize', () => {
   }
 });
 
-// Update your createPlane function
-function createPlane(tex) {
-  const aspectRatio = tex.image.width / tex.image.height;
-  const geometry = new THREE.PlaneGeometry(2 * Math.max(1, aspectRatio), 2 * Math.max(1, 1/aspectRatio));
-  const material = new THREE.MeshBasicMaterial({ map: tex });
-  imageMesh = new THREE.Mesh(geometry, material);
-  scene.add(imageMesh);
-}
-
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
-  if (composer) composer.render();
+  //if (composer) composer.render();
 }
 
 // Set up event listeners
@@ -960,17 +839,73 @@ function setupEventListeners() {
   });
 }
 
-// Initialize the application
-init(); 
+
+// Function to create a plane with the given texture
+function createPlane(texture) {
+  const geometry = new THREE.PlaneGeometry(2, 2); // Adjust the size as needed
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      texture: { value: texture },
+      ...allUniforms // Spread any additional uniforms if needed
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: shaderCode // Use the global shaderCode variable
+  });
+  const plane = new THREE.Mesh(geometry, material);
+  return plane;
+}
+
+function loadImage(file) {
+  const loader = new THREE.TextureLoader();
+  const url = URL.createObjectURL(file);
+
+  loader.load(
+    url,
+    (tex) => {
+      URL.revokeObjectURL(url);
+      texture = tex;
+
+      if (imageMesh) {
+        scene.remove(imageMesh);
+      }
+
+      imageMesh = createPlane(texture);
+      scene.add(imageMesh);
+    },
+    undefined,
+    (error) => {
+      URL.revokeObjectURL(url);
+      console.error('An error occurred while loading the texture:', error);
+    }
+  );
+}
 
 async function loadDefaultImage() {
-  try {
-    texture = await loader.loadAsync('amsler_grid.jpg');
-    //console.log('Default image loaded:', texture); // Debug log
-    createPlane(texture);
-    updateCameraAndRenderer(texture.image.width, texture.image.height);
-    setupPostProcessing();
-  } catch (error) {
-    console.error('Error loading default image:', error);
-  }
+  const loader = new THREE.TextureLoader();
+  loader.load(
+    'amsler_grid.jpg',
+    (tex) => {
+      texture = tex;
+
+      if (imageMesh) {
+        scene.remove(imageMesh);
+      }
+
+      imageMesh = createPlane(texture);
+      scene.add(imageMesh);
+    },
+    undefined,
+    (error) => {
+      console.error('An error occurred while loading the default texture:', error);
+    }
+  );
 }
+
+// Initialize the application
+init();
