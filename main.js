@@ -687,6 +687,8 @@ function updateEffects() {
 
   const uniforms = imageMesh.material.uniforms;
 
+  console.log('Updating uniforms:', allUniforms);
+
   // Update ColorShift uniform
   if (uniforms.colorShift) {
     uniforms.colorShift.value.isActive = allUniforms["ColorShift"][0].value;
@@ -721,40 +723,38 @@ function updateEffects() {
 
   // Update LightDegradation uniform
   if (uniforms.lightDegradation) {
-    const kernels = allUniforms["LightDegradation"][2].value; // Assuming 'kernels' is at index 2 for this effect
+    const kernels = allUniforms["LightDegradation"][2].value;
     uniforms.lightDegradation.value.isActive = allUniforms["LightDegradation"][0].value;
     uniforms.lightDegradation.value.order = allUniforms["LightDegradation"][1].value;
-    uniforms.lightDegradation.value.kernels = kernels.map((kernelData) => new THREE.Vector4(kernelData.x, kernelData.y, kernelData.z, kernelData.w));
+    uniforms.lightDegradation.value.kernels = kernels.map((arr) => new THREE.Vector4(...arr));
   }
 
   // Update RotationDistortion uniform
   if (uniforms.rotationDistortion) {
+    const center = allUniforms["RotationDistortion"][2].value;
     uniforms.rotationDistortion.value.isActive = allUniforms["RotationDistortion"][0].value;
     uniforms.rotationDistortion.value.order = allUniforms["RotationDistortion"][1].value;
-    uniforms.rotationDistortion.value.centers = allUniforms["RotationDistortion"][2].value.map(
-      (center) => new THREE.Vector2(center.x, center.y)
-    );
+    uniforms.rotationDistortion.value.centers = center.map((arr) => new THREE.Vector2(...arr));
     uniforms.rotationDistortion.value.sigmas = allUniforms["RotationDistortion"][3].value;
     uniforms.rotationDistortion.value.weights = allUniforms["RotationDistortion"][4].value;
   }
 
   // Update SpatialDistortion uniform
   if (uniforms.spatialDistortion) {
+    const center = allUniforms["SpatialDistortion"][2].value;
     uniforms.spatialDistortion.value.isActive = allUniforms["SpatialDistortion"][0].value;
     uniforms.spatialDistortion.value.order = allUniforms["SpatialDistortion"][1].value;
-    uniforms.spatialDistortion.value.centers = allUniforms["SpatialDistortion"][2].value.map(
-      (center) => new THREE.Vector2(center.x, center.y)
-    );
+    uniforms.spatialDistortion.value.centers = center.map((arr) => new THREE.Vector2(...arr));
     uniforms.spatialDistortion.value.sigmas = allUniforms["SpatialDistortion"][3].value;
     uniforms.spatialDistortion.value.weights = allUniforms["SpatialDistortion"][4].value;
   }
 
   // Update VisualAcuityLoss uniform
   if (uniforms.visualAcuityLoss) {
-    const kernels = allUniforms["VisualAcuityLoss"][2].value; // Assuming 'kernels' is at index 2 for this effect
+    const kernels = allUniforms["VisualAcuityLoss"][2].value;
     uniforms.visualAcuityLoss.value.isActive = allUniforms["VisualAcuityLoss"][0].value;
     uniforms.visualAcuityLoss.value.order = allUniforms["VisualAcuityLoss"][1].value;
-    uniforms.visualAcuityLoss.value.kernels = kernels.map((kernelData) => new THREE.Vector4(kernelData.x, kernelData.y, kernelData.z, kernelData.w));
+    uniforms.visualAcuityLoss.value.kernels = kernels.map((arr) => new THREE.Vector4(...arr));
   }
 
   // Mark all uniforms for update
