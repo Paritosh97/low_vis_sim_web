@@ -23,6 +23,7 @@ async function init() {
     try {
         shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
         allUniforms = parseShaderUniforms(shaderCode);
+        console.log(allUniforms);
         // Build the UI
         buildUI();
 
@@ -39,82 +40,96 @@ async function init() {
     }
 }
 
-function extractUniformData(match, effectBody, floatMatches, intMatches) {
-    const type = match[1];
-    const name = match[2];
-    const isArray = match[3] !== undefined;
-    const arrayLength = isArray ? parseInt(match[3], 10) : null;
+function parseShaderUniforms(shaderCode) {
+  const effects = {};
+  const effectStructs = extractEffectStructs(shaderCode);
 
-    let min = null, max = null, defaultValue = null, dropdownOptions = null;
+  for (const { name: effectName, body: effectBody } of effectStructs) {
+      if (effectName === "Effect") continue;
 
-    // Check for float properties
-    const floatMatch = floatMatches.find(m => m.name === name);
-    if (floatMatch) {
-        min = parseFloat(floatMatch.min);
-        max = parseFloat(floatMatch.max);
-        defaultValue = parseFloat(floatMatch.defaultValue);
-    }
+      const floatMetadata = extractFloatMetadata(effectBody);
+      const intMetadata = extractIntMetadata(effectBody);
 
-    // Check for int properties
-    const intMatch = intMatches.find(m => m.name === name);
-    if (intMatch) {
-        dropdownOptions = intMatch.dropdownOptions;
-    }
+      const uniforms = extractUniforms(effectBody, floatMetadata, intMetadata);
+      effects[effectName] = uniforms;
+  }
 
-    return { type, name, isArray, arrayLength, min, max, defaultValue, dropdownOptions };
+  return effects;
 }
 
-function parseShaderUniforms(shaderCode) {
-    const effectRegex = /struct\s+(\w+)\s*\{\s*([^}]+)\s*\}/g;
-    const propertyRegex = /(\w+)\s+(\w+)(?:\s*\[\s*(\d+)\s*\])?\s*;/g;
-    const floatRegex = /float\s+(\w+)\s*(?:\/\/\s*min:\s*([\d\.]+)\s*max:\s*([\d\.]+)\s*default:\s*([\d\.]+))?/g;
-    const intRegex = /int\s+(\w+)\s*(?:\/\/\s*dropdown:\s*\(([^)]+)\))?/g;
+function extractUniformData(match, effectBody, floatMatches, intMatches) {
+  const type = match[1];
+  const name = match[2];
+  const isArray = match[3] !== undefined;
+  const arrayLength = isArray ? parseInt(match[3], 10) : null;
 
-    const effects = {};
+  let min = null, max = null, defaultValue = null, dropdownOptions = null;
 
-    let effectMatch;
-    while ((effectMatch = effectRegex.exec(shaderCode)) !== null) {
-        const effectName = effectMatch[1];
-        if (effectName == "Effect") continue;
-        const effectBody = effectMatch[2];
+  // Check for float properties
+  const floatMatch = floatMatches.find(m => m.name === name);
+  if (floatMatch) {
+      min = parseFloat(floatMatch.min);
+      max = parseFloat(floatMatch.max);
+      defaultValue = parseFloat(floatMatch.defaultValue);
+  }
 
-        const uniforms = [];
+  // Check for int properties
+  const intMatch = intMatches.find(m => m.name === name);
+  if (intMatch) {
+      dropdownOptions = intMatch.dropdownOptions;
+  }
 
-        // Extract all float and int matches at once
-        const floatMatches = [...effectBody.matchAll(floatRegex)].map(m => ({
-            name: m[1],
-            min: m[2],
-            max: m[3],
-            defaultValue: m[4]
-        }));
+  return { type, name, isArray, arrayLength, min, max, defaultValue, dropdownOptions };
+}
 
-        const intMatches = [...effectBody.matchAll(intRegex)].map(m => ({
-            name: m[1],
-            dropdownOptions: m[2] ? m[2].split(',').map(option => option.trim()) : null
-        }));
+function extractEffectStructs(code) {
+  const effectRegex = /struct\s+(\w+)\s*\{\s*([^}]+)\s*\}/g;
+  const results = [];
+  let match;
+  while ((match = effectRegex.exec(code)) !== null) {
+      results.push({ name: match[1], body: match[2] });
+  }
+  return results;
+}
 
-        let propertyMatch;
-        // Parse properties within the effect
-        while ((propertyMatch = propertyRegex.exec(effectBody)) !== null) {
-            const uniformData = extractUniformData(propertyMatch, effectBody, floatMatches, intMatches);
+function extractFloatMetadata(body) {
+  const floatRegex = /float\s+(\w+)\s*;\s*\/\/\s*min:\s*([-\d.]+)\s*max:\s*([-\d.]+)\s*default:\s*([-\d.]+)/g;
+  return [...body.matchAll(floatRegex)].map(m => ({
+      name: m[1],
+      min: m[2],
+      max: m[3],
+      defaultValue: m[4]
+  }));
+}
 
-            if (uniformData.dropdownOptions) {
-                uniforms.push({
-                    name: uniformData.name,
-                    ...createDropdownUniform(uniformData.type, uniformData.isArray, uniformData.arrayLength, uniformData.dropdownOptions)
-                });
-            } else {
-                uniforms.push({
-                    name: uniformData.name,
-                    ...createUniform(uniformData.type, uniformData.isArray, uniformData.arrayLength, uniformData.min, uniformData.max, uniformData.defaultValue)
-                });
-            }
-        }
+function extractIntMetadata(body) {
+  const intRegex = /int\s+(\w+)\s*;?\s*\/\/\s*dropdown:\s*\(([^)]+)\)/g;
+  return [...body.matchAll(intRegex)].map(m => ({
+      name: m[1],
+      dropdownOptions: m[2] ? m[2].split(',').map(opt => opt.trim()) : null
+  }));
+}
 
-        effects[effectName] = uniforms;
-    }
+function extractUniforms(body, floatMeta, intMeta) {
+  const propertyRegex = /(\w+)\s+(\w+)(?:\s*\[\s*(\d+)\s*\])?\s*;/g;
+  const uniforms = [];
+  let match;
+  while ((match = propertyRegex.exec(body)) !== null) {
+      const uniformData = extractUniformData(match, body, floatMeta, intMeta);
 
-    return effects;
+      if (uniformData.dropdownOptions) {
+          uniforms.push({
+              name: uniformData.name,
+              ...createDropdownUniform(uniformData.type, uniformData.isArray, uniformData.arrayLength, uniformData.dropdownOptions)
+          });
+      } else {
+          uniforms.push({
+              name: uniformData.name,
+              ...createUniform(uniformData.type, uniformData.isArray, uniformData.arrayLength, uniformData.min, uniformData.max, uniformData.defaultValue)
+          });
+      }
+  }
+  return uniforms;
 }
 
 function createDropdownUniform(type, isArray, arrayLength, dropdownOptions) {
@@ -269,7 +284,7 @@ function createCheckbox(name, uniforms) {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.id = `effect-${name}`;
-  checkbox.checked = uniforms[0].defaultValue;
+  checkbox.checked = uniforms[0].value;
 
   checkbox.addEventListener('change', () => {
     uniforms[0].value = checkbox.checked;
@@ -687,8 +702,6 @@ function updateEffects() {
 
   const uniforms = imageMesh.material.uniforms;
 
-  console.log('Updating uniforms:', allUniforms);
-
   // Update ColorShift uniform
   if (uniforms.colorShift) {
     uniforms.colorShift.value.isActive = allUniforms["ColorShift"][0].value;
@@ -861,66 +874,66 @@ function createPlane(texture) {
       uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
       colorShift: {
         value: {
-          isActive: false,
-          order: 0,
-          severity: 0.5,
-          cvdType: 0
+          isActive: allUniforms["ColorShift"][0].defaultValue,
+          order: allUniforms["ColorShift"][1].defaultValue,
+          severity: allUniforms["ColorShift"][2].defaultValue,
+          cvdType: allUniforms["ColorShift"][3].defaultValue
         }
       },
       contrastChange: {
         value: {
-          isActive: false,
-          order: 0,
-          horizontalScale: 1.0,
-          verticalScale: 1.0
+          isActive: allUniforms["ContrastChange"][0].defaultValue,
+          order: allUniforms["ContrastChange"][1].defaultValue,          
+          horizontalScale: allUniforms["ContrastChange"][2].defaultValue,
+          verticalScale: allUniforms["ContrastChange"][3].defaultValue
         }
       },
       fovReduction: {
         value: {
-          isActive: false,
-          order: 0,
-          threshold: 0.5
+          isActive: allUniforms["FovReduction"][0].defaultValue,
+          order: allUniforms["FovReduction"][1].defaultValue,
+          threshold: allUniforms["FovReduction"][2].defaultValue
         }
       },
       infilling: {
         value: {
-          isActive: false,
-          order: 0,
-          infillX: 0.5,
-          infillY: 0.5,
-          infillSize: 10.0
+          isActive: allUniforms["Infilling"][0].defaultValue,
+          order: allUniforms["Infilling"][1].defaultValue,
+          infillX: allUniforms["Infilling"][2].defaultValue,
+          infillY: allUniforms["Infilling"][3].defaultValue,
+          infillSize: allUniforms["Infilling"][4].defaultValue
         }
       },
       lightDegradation: {
         value: {
-          isActive: false,
-          order: 0,
-          kernels: Array.from({ length: 16 }, () => new THREE.Vector4(0.5, 0.5, 0.05, 0.25))
+          isActive: allUniforms["LightDegradation"][0].defaultValue,
+          order: allUniforms["LightDegradation"][1].defaultValue,
+          kernels: allUniforms["LightDegradation"][2].defaultValue.map((arr) => new THREE.Vector4(...arr))
         }
       },
       rotationDistortion: {
         value: {
-          isActive: false,
-          order: 0,
-          centers: [new THREE.Vector2(0, 0), new THREE.Vector2(0, 0), new THREE.Vector2(0, 0)],
-          sigmas: [0.5, 0.5, 0.5],
-          weights: [0.5, 0.5, 0.5]
+          isActive: allUniforms["RotationDistortion"][0].defaultValue,
+          order: allUniforms["RotationDistortion"][1].defaultValue,
+          centers: allUniforms["RotationDistortion"][2].defaultValue.map((arr) => new THREE.Vector2(...arr)),
+          sigmas: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
+          weights: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x)
         }
       },
       spatialDistortion: {
         value: {
-          isActive: false,
-          order: 0,
-          centers: [new THREE.Vector2(0, 0), new THREE.Vector2(0, 0), new THREE.Vector2(0, 0)],
-          sigmas: [0.5, 0.5, 0.5],
-          weights: [0.5, 0.5, 0.5]
+          isActive: allUniforms["SpatialDistortion"][0].defaultValue,
+          order: allUniforms["SpatialDistortion"][1].defaultValue,
+          centers: allUniforms["SpatialDistortion"][2].defaultValue.map((arr) => new THREE.Vector2(...arr)),
+          sigmas: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
+          weights: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
         }
       },
       visualAcuityLoss: {
         value: {
-          isActive: false,
-          order: 0,
-          kernels: Array.from({ length: 16 }, () => new THREE.Vector4(0.5, 0.5, 0.1, 0.1))
+          isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
+          order: allUniforms["VisualAcuityLoss"][1].defaultValue,
+          kernels: allUniforms["VisualAcuityLoss"][2].defaultValue.map((arr) => new THREE.Vector4(...arr))
         }
       }
     },

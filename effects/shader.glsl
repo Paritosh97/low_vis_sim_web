@@ -30,7 +30,7 @@ struct Infilling {
     int order;
     float infillX; // min: 0.001 max: 1.0 default: 0.5
     float infillY; // min: 0.001 max: 1.0 default: 0.5
-    float infillSize; // min: 0.001 max: 10.0 default: 10.0
+    float infillSize; // min: 0.001 max: 1.0 default: 0.2
 };
 
 struct LightDegradation {
@@ -264,10 +264,9 @@ void main() {
     vec2 uv = vUv;
     vec4 color = texture2D(uImage, uv);
 
-     // --- Define effect order and type ---
     struct Effect {
         int order;
-        int type;  // 0=ColorShift, 1=ContrastChange, etc.
+        int type;
     };
 
     Effect effects[8] = Effect[8](
