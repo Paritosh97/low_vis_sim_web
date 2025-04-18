@@ -28,21 +28,21 @@ struct FovReduction {
 struct Infilling {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 3
-    float infillX; // min: 0.001 max: 1.0 default: 0.5
-    float infillY; // min: 0.001 max: 1.0 default: 0.5
+    float infillX; // min: -1.0 max: 1.0 default: 0.0
+    float infillY; // min: 0.0 max: 3.1415 default: 0.0
     float infillSize; // min: 0.001 max: 1.0 default: 0.2
 };
 
 struct LightDegradation {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 4
-    vec4 kernels[16]; // min: (0.0, 0.0, 0.0, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.05, 0.25)
+    vec4 kernels[16]; // min: (-1.0, 0.0, 0.0, 0.0) max: (1.0, 3.1415, 0.5, 1.0) default: (0.0, 0.5, 0.05, 0.25)
 };
 
 struct RotationDistortion {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 5
-    vec2 centers[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
+    vec2 centers[3]; // min: (-1.0, 0.0) max: (1.0, 3.1415) default: (0.0, 0.0)
     float sigmas[3]; // min: 0.001 max: 1.0 default: 0.5
     float weights[3]; // min: 0.0 max: 1.0 default: 0.5
 };
@@ -50,7 +50,7 @@ struct RotationDistortion {
 struct SpatialDistortion {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 6
-    vec2 centers[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
+    vec2 centers[3]; // min: (-1.0, 0.0) max: (1.0, 3.1415) default: (0.0, 0.0)
     float sigmas[3]; // min: 0.001 max: 1.0 default: 0.5
     float weights[3]; // min: 0.0 max: 1.0 default: 0.5
 };
@@ -58,7 +58,7 @@ struct SpatialDistortion {
 struct VisualAcuityLoss {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 7
-    vec4 kernels[16]; // min: (0.0, 0.0, 0.001, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.1, 0.1)
+    vec4 kernels[16]; // min: (-1.0, 0.0, 0.001, 0.0) max: (1.0, 3.1415, 0.5, 1.0) default: (0.0, 0.0, 0.1, 0.1)
 };
 
 // Uniform instances
@@ -82,6 +82,19 @@ vec2 rotate(vec2 p, float angle) {
     float s = sin(angle);
     float c = cos(angle);
     return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+}
+
+vec2 perimetricToCartesian(vec2 perimetric) {
+    float eccentricity = perimetric.x;
+    float halfMeridian = perimetric.y;
+
+    // Convert to Cartesian coordinates
+    vec2 cartesian = vec2(cos(halfMeridian), sin(halfMeridian)) * (eccentricity * 0.5);
+
+    // Rescale to [0, 1] range and center around (0.5, 0.5)
+    cartesian = cartesian + 0.5;
+
+    return cartesian;
 }
 
 mat3 getProtanomalyMatrix(int level) {
@@ -138,6 +151,7 @@ vec4 applySpatialDistortion(vec4 color, SpatialDistortion sd) {
     vec2 uv = vUv;
     for (int i = 0; i < 3; ++i) {
         vec2 center = sd.centers[i];
+        center = perimetricToCartesian(center);
         float sigma = sd.sigmas[i];
         float weight = sd.weights[i];
         float falloff = gaussian(uv, center, sigma);
@@ -153,6 +167,7 @@ vec4 applyRotationDistortion(vec4 color, RotationDistortion rd) {
     vec2 rotatedP = p;
     for (int i = 0; i < 3; ++i) {
         vec2 center = rd.centers[i];
+        center = perimetricToCartesian(center);
         float sigma = rd.sigmas[i];
         float weight = rd.weights[i];
         float falloff = gaussian(p, center, sigma);
@@ -179,6 +194,7 @@ vec4 applyInfilling(vec4 color, Infilling inf) {
     if (!inf.isActive) return color;
     vec2 uv = vUv;
     vec2 center = vec2(inf.infillX, inf.infillY);
+    center = perimetricToCartesian(center);
     float dist = distance(uv, center);
     if (dist <= inf.infillSize) {
         vec2 texel = vec2(1.0) / uResolution;
@@ -205,6 +221,7 @@ vec4 applyInfilling(vec4 color, Infilling inf) {
 vec4 applyVisualAcuityLoss(vec4 color, VisualAcuityLoss val) {
     if (!val.isActive) return color;
     vec2 uv = vUv;
+    uv = perimetricToCartesian(uv);
     vec3 blurredColor = vec3(0.0);
     float totalWeight = 0.0;
     for (int i = 0; i < 16; ++i) {
@@ -252,6 +269,7 @@ vec4 applyLightDegradation(vec4 color, LightDegradation ld) {
     for (int i = 0; i < 16; ++i) {
         vec4 kernel = ld.kernels[i];
         vec2 mu = vec2(kernel.x, kernel.y);
+        mu = perimetricToCartesian(mu);
         float sigma = kernel.z;
         float omega = kernel.w;
         degradation += omega * gaussian(uv, mu, sigma);
