@@ -51,8 +51,8 @@ struct SpatialDistortion {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 6
     vec2 centers[3]; // min: (-1.0, 0.0) max: (1.0, 3.1415) default: (0.0, 0.0)
-    float sigmas[3]; // min: 0.001 max: 1.0 default: 0.5
-    float weights[3]; // min: 0.0 max: 1.0 default: 0.5
+    float sigmas[3]; // min: 0.001 max: 1.0 default: 0.2
+    float weights[3]; // min: 0.0 max: 1.0 default: 0.2
 };
 
 struct VisualAcuityLoss {
@@ -308,7 +308,7 @@ void main() {
         }
     }
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 7; i >= 0; i--) {
         int effectType = effects[i].type;
 
         if (effectType == 0) {

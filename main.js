@@ -286,8 +286,6 @@ async function buildUI() {
     const div = createEffectDiv(effectName, effectUniforms);
     container.appendChild(div);
   }
-  if (imageMesh)
-    console.log('Updated uniforms:', imageMesh.material.uniforms);
 }
 
 function createEffectDiv(name, uniforms) {
@@ -1015,7 +1013,6 @@ function createPlane(texture) {
 
   return new THREE.Mesh(geometry, material);
 }
-
 
 function loadImage(file) {
   const loader = new THREE.TextureLoader();
