@@ -6,58 +6,58 @@ uniform vec2 uResolution;
 varying vec2 vUv;
 
 struct ColorShift {
-    bool isActive;
-    int order;
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 7 default: 0
     float severity;  // min: 0.0 max: 1.0 default: 0.5
     int cvdType;     // dropdown: (Protanomaly, Deuteranomaly, Tritanomaly)
 };
 
 struct ContrastChange {
-    bool isActive;
-    int order;
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 7 default: 1
     float horizontalScale; // min: 0.0 max: 2.0 default: 1.0
     float verticalScale;   // min: 0.0 max: 2.0 default: 1.0
 };
 
 struct FovReduction {
-    bool isActive;
-    int order;
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 7 default: 2
     float threshold; // min: 0.0 max: 1.0 default: 0.5
 };
 
 struct Infilling {
-    bool isActive;
-    int order;
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 7 default: 3
     float infillX; // min: 0.001 max: 1.0 default: 0.5
     float infillY; // min: 0.001 max: 1.0 default: 0.5
     float infillSize; // min: 0.001 max: 1.0 default: 0.2
 };
 
 struct LightDegradation {
-    bool isActive;
-    int order;
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 7 default: 4
     vec4 kernels[16]; // min: (0.0, 0.0, 0.0, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.05, 0.25)
 };
 
 struct RotationDistortion {
-    bool isActive;
-    int order;
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 7 default: 5
     vec2 centers[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
     float sigmas[3]; // min: 0.001 max: 1.0 default: 0.5
     float weights[3]; // min: 0.0 max: 1.0 default: 0.5
 };
 
 struct SpatialDistortion {
-    bool isActive;
-    int order;
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 7 default: 6
     vec2 centers[3]; // min: (-1.0, -1.0) max: (1.0, 1.0) default: (0.0, 0.0)
     float sigmas[3]; // min: 0.001 max: 1.0 default: 0.5
     float weights[3]; // min: 0.0 max: 1.0 default: 0.5
 };
 
 struct VisualAcuityLoss {
-    bool isActive;
-    int order;
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 7 default: 7
     vec4 kernels[16]; // min: (0.0, 0.0, 0.001, 0.0) max: (1.0, 1.0, 0.5, 1.0) default: (0.5, 0.5, 0.1, 0.1)
 };
 
@@ -280,7 +280,6 @@ void main() {
         Effect(visualAcuityLoss.order, 7)
     );
 
-    // --- Sort effects by order (bubble sort) ---
     for (int i = 0; i < 8; i++) {
         for (int j = i + 1; j < 8; j++) {
             if (effects[i].order > effects[j].order) {
@@ -291,7 +290,6 @@ void main() {
         }
     }
 
-    // --- Apply effects in sorted order ---
     for (int i = 0; i < 8; i++) {
         int effectType = effects[i].type;
 

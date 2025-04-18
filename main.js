@@ -23,7 +23,6 @@ async function init() {
     try {
         shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
         allUniforms = parseShaderUniforms(shaderCode);
-        console.log(allUniforms);
         // Build the UI
         buildUI();
 
@@ -48,16 +47,18 @@ function parseShaderUniforms(shaderCode) {
       if (effectName === "Effect") continue;
 
       const floatMetadata = extractFloatMetadata(effectBody);
-      const intMetadata = extractIntMetadata(effectBody);
+      const intDropdownMetadata = extractIntDropdownMetadata(effectBody);
+      const boolMetadata = extractBoolMetadata(effectBody);
+      const intRangeMetadata = extractIntRangeMetadata(effectBody);
 
-      const uniforms = extractUniforms(effectBody, floatMetadata, intMetadata);
+      const uniforms = extractUniforms(effectBody, floatMetadata, intDropdownMetadata, intRangeMetadata, boolMetadata);
       effects[effectName] = uniforms;
   }
 
   return effects;
 }
 
-function extractUniformData(match, effectBody, floatMatches, intMatches) {
+function extractUniformData(match, floatMatches, intDropdownMatches, intRangeMatches, boolMatches) {
   const type = match[1];
   const name = match[2];
   const isArray = match[3] !== undefined;
@@ -74,9 +75,23 @@ function extractUniformData(match, effectBody, floatMatches, intMatches) {
   }
 
   // Check for int properties
-  const intMatch = intMatches.find(m => m.name === name);
+  const intMatch = intDropdownMatches.find(m => m.name === name);
   if (intMatch) {
       dropdownOptions = intMatch.dropdownOptions;
+  }
+
+  const boolMatch = boolMatches.find(m => m.name === name);
+  if (boolMatch) {
+      min = boolMatch.min;
+      max = boolMatch.max;
+      defaultValue = boolMatch.defaultValue;
+  }
+
+  const intRangeMatch = intRangeMatches.find(m => m.name === name);
+  if (intRangeMatch) {
+      min = intRangeMatch.min;
+      max = intRangeMatch.max;
+      defaultValue = intRangeMatch.defaultValue;
   }
 
   return { type, name, isArray, arrayLength, min, max, defaultValue, dropdownOptions };
@@ -102,7 +117,7 @@ function extractFloatMetadata(body) {
   }));
 }
 
-function extractIntMetadata(body) {
+function extractIntDropdownMetadata(body) {
   const intRegex = /int\s+(\w+)\s*;?\s*\/\/\s*dropdown:\s*\(([^)]+)\)/g;
   return [...body.matchAll(intRegex)].map(m => ({
       name: m[1],
@@ -110,12 +125,34 @@ function extractIntMetadata(body) {
   }));
 }
 
-function extractUniforms(body, floatMeta, intMeta) {
+function extractBoolMetadata(body) {
+  const boolRegex = /bool\s+(\w+)\s*;\s*\/\/\s*min:\s*(true|false)\s*max:\s*(true|false)\s*default:\s*(true|false)/g;
+  return [...body.matchAll(boolRegex)].map(m => ({
+    name: m[1],
+    min: m[2] === 'true',
+    max: m[3] === 'true',
+    defaultValue: m[4] === 'true'
+  }));
+}
+
+function extractIntRangeMetadata(body) {
+  const intRangeRegex = /int\s+(\w+)\s*;\s*\/\/\s*min:\s*(\d+)\s*max:\s*(\d+)\s*default:\s*(\d+)/g;
+  return [...body.matchAll(intRangeRegex)].map(m => ({
+    name: m[1],
+    min: parseInt(m[2], 10),
+    max: parseInt(m[3], 10),
+    defaultValue: parseInt(m[4], 10)
+  }));
+}
+
+
+
+function extractUniforms(effectBody, floatMetadata, intDropdownMetadata, intRangeMetadata, boolMetadata) {
   const propertyRegex = /(\w+)\s+(\w+)(?:\s*\[\s*(\d+)\s*\])?\s*;/g;
   const uniforms = [];
   let match;
-  while ((match = propertyRegex.exec(body)) !== null) {
-      const uniformData = extractUniformData(match, body, floatMeta, intMeta);
+  while ((match = propertyRegex.exec(effectBody)) !== null) {
+      const uniformData = extractUniformData(match, floatMetadata, intDropdownMetadata, intRangeMetadata, boolMetadata);
 
       if (uniformData.dropdownOptions) {
           uniforms.push({
@@ -223,33 +260,42 @@ async function buildUI() {
   const container = document.getElementById('effectsContainer');
   container.innerHTML = '';
 
-  // Get list of enabled effects in current order
-  const enabledEffects = getEnabledEffects();
+  // Collect enabled and disabled effects
+  const enabled = [];
+  const disabled = [];
 
-  for (const [effectName, effectUniforms] of Object.entries(allUniforms)) {
-    const div = createEffectDiv(effectName, effectUniforms, enabledEffects);
+  // Split effects into enabled and disabled arrays
+  for (const [name, uniforms] of Object.entries(allUniforms)) {
+    if (uniforms[0].value) enabled.push([name, uniforms]);
+    else disabled.push([name, uniforms]);
+  }
+
+  // Step 1: Sort enabled effects by their current order value
+  enabled.sort((a, b) => a[1][1].value - b[1][1].value);
+
+  // Step 2: Reassign fresh order values starting from 0 based on their index
+  enabled.forEach(([, uniforms], i) => {
+    uniforms[1].value = i;  // Reassign order based on position (0, 1, 2...)
+  });
+
+  // Combine enabled and disabled effects
+  const sorted = [...enabled, ...disabled];
+
+  // Step 3: Rebuild the UI with sorted effects
+  for (const [effectName, effectUniforms] of sorted) {
+    const div = createEffectDiv(effectName, effectUniforms);
     container.appendChild(div);
   }
+  if (imageMesh)
+    console.log('Updated uniforms:', imageMesh.material.uniforms);
 }
 
-function getEnabledEffects() {
-  const enabledEffects = [];
-
-  for (const [effectName, effectUniforms] of Object.entries(allUniforms)) {
-    if (effectUniforms[0].value === true) {
-      enabledEffects.push(effectName);
-    }
-  }
-
-  return enabledEffects;
-}
-
-function createEffectDiv(name, uniforms, enabledEffects) {
+function createEffectDiv(name, uniforms) {
   const div = document.createElement('div');
   div.className = 'effect';
   div.dataset.effectName = name;
 
-  const header = createEffectHeader(name, uniforms, enabledEffects);
+  const header = createEffectHeader(name, uniforms);
   div.appendChild(header);
 
   const paramsContainer = createParamsContainer(name, uniforms.filter(uniform => uniform.name !== 'isActive' && uniform.name !== 'order'));
@@ -262,7 +308,7 @@ function createEffectDiv(name, uniforms, enabledEffects) {
   return div;
 }
 
-function createEffectHeader(name, uniforms, enabledEffects) {
+function createEffectHeader(name, uniforms) {
   const header = document.createElement('div');
   header.className = 'effect-header';
 
@@ -303,24 +349,33 @@ function createLabel(name) {
   return label;
 }
 
-function createMoveControls(name, order) {
+function createMoveControls(name) {
   const moveControls = document.createElement('div');
   moveControls.className = 'move-controls';
 
-  // Up button (not shown for first enabled effect)
-  if (order > 0) {
-    const upBtn = createMoveButton('↑', 'up', () => moveEffectUp(name, order));
+  const activeEffects = Object.entries(allUniforms)
+    .filter(([_, uniforms]) => uniforms[0].value)
+    .sort((a, b) => a[1][1].value - b[1][1].value);
+
+  if (activeEffects.length <= 1) return moveControls; // only one active effect
+
+  const index = activeEffects.findIndex(([key]) => key === name);
+
+  // Up button (not shown for first)
+  if (index > 0) {
+    const upBtn = createMoveButton('↑', 'up', () => moveEffectUp(name));
     moveControls.appendChild(upBtn);
   }
 
-  // Down button (not shown for last enabled effect)
-  if (order < 7) {
-    const downBtn = createMoveButton('↓', 'down', () => moveEffectDown(name, order));
+  // Down button (not shown for last)
+  if (index < activeEffects.length - 1) {
+    const downBtn = createMoveButton('↓', 'down', () => moveEffectDown(name));
     moveControls.appendChild(downBtn);
   }
 
   return moveControls;
 }
+
 
 function createMoveButton(label, direction, onClick) {
   const button = document.createElement('button');
@@ -332,6 +387,37 @@ function createMoveButton(label, direction, onClick) {
   });
 
   return button;
+}
+
+function moveEffect(name, direction) {
+  const activeEffects = Object.entries(allUniforms)
+    .filter(([_, uniforms]) => uniforms[0].value) // Filter only enabled effects
+    .sort((a, b) => a[1][1].value - b[1][1].value); // Sort by order value
+
+  const index = activeEffects.findIndex(([key]) => key === name);
+  const swapIndex = index + direction;
+
+  if (swapIndex < 0 || swapIndex >= activeEffects.length) return; // Prevent invalid move
+
+  const currentEffect = activeEffects[index];
+  const otherEffect = activeEffects[swapIndex];
+
+  // Swap their order values
+  const temp = currentEffect[1][1].value;
+  currentEffect[1][1].value = otherEffect[1][1].value;
+  otherEffect[1][1].value = temp;
+
+  // Update UI
+  updateEffects();
+  buildUI();
+}
+
+function moveEffectUp(name) {
+  moveEffect(name, -1);
+}
+
+function moveEffectDown(name) {
+  moveEffect(name, 1);
 }
 
 function createParamsContainer(name, uniforms) {
@@ -675,26 +761,6 @@ function createUniformControl(effectName, uniform) {
   // If no matching type is found, log a warning (you can handle it as needed)
   console.warn(`No handler for uniform type: ${uniform.type}`);
   return null;
-}
-
-// Move an effect up in the order
-function moveEffectUp(name, order) {
-  const enabledEffects = getEnabledEffects();
-  if (order > 0) {
-    // Swap the current effect with the one above it
-    [enabledEffects[order], enabledEffects[order - 1]] = [enabledEffects[order - 1], enabledEffects[order]];
-    buildUI();
-  }
-}
-
-// Move an effect down in the order
-function moveEffectDown(name, order) {
-  const enabledEffects = getEnabledEffects();
-  if (order < enabledEffects.length - 1) {
-    // Swap the current effect with the one below it
-    [enabledEffects[order], enabledEffects[order + 1]] = [enabledEffects[order + 1], enabledEffects[order]];
-    buildUI();
-  }
 }
 
 function updateEffects() {
