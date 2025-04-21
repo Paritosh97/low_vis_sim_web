@@ -1,5 +1,6 @@
 precision highp float;
 
+
 // Common uniforms
 uniform sampler2D uImage;
 uniform vec2 uResolution;
@@ -36,7 +37,9 @@ struct Infilling {
 struct LightDegradation {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 4
-    vec4 kernels[16]; // min: (-1.0, 0.0, 0.0, 0.0) max: (1.0, 3.1415, 0.5, 1.0) default: (0.0, 0.5, 0.05, 0.25)
+    vec2 centers[16]; // min: (-1.0, 0.0) max: (1.0, 3.1415) default: (0.0, 0.0)
+    float sigma[16]; // min: 0.001 max: 1.0 default: 0.1
+    float omega[16]; // min: 0.001 max: 1.0 default: 0.2
 };
 
 struct RotationDistortion {
@@ -163,7 +166,8 @@ vec4 applySpatialDistortion(vec4 color, SpatialDistortion sd) {
 vec4 applyRotationDistortion(vec4 color, RotationDistortion rd) {
     if (!rd.isActive) return color;
     vec2 uv = vUv;
-    vec2 p = uv * uResolution;
+    vec2 resolution = vec2(1.0, 1.0); // TODO pass this from the js side
+    vec2 p = uv * resolution;
     vec2 rotatedP = p;
     for (int i = 0; i < 3; ++i) {
         vec2 center = rd.centers[i];
@@ -176,7 +180,7 @@ vec4 applyRotationDistortion(vec4 color, RotationDistortion rd) {
         vec2 rotated = rotate(relativeP, angle) + center;
         rotatedP += (rotated - p);
     }
-    uv = rotatedP / uResolution;
+    uv = rotatedP / resolution;
     return texture2D(uImage, uv);
 }
 
@@ -267,11 +271,10 @@ vec4 applyLightDegradation(vec4 color, LightDegradation ld) {
     vec2 uv = vUv;
     float degradation = 0.0;
     for (int i = 0; i < 16; ++i) {
-        vec4 kernel = ld.kernels[i];
-        vec2 mu = vec2(kernel.x, kernel.y);
+        vec2 mu = ld.centers[i];
         mu = perimetricToCartesian(mu);
-        float sigma = kernel.z;
-        float omega = kernel.w;
+        float sigma = ld.sigma[i];
+        float omega = ld.omega[i];
         degradation += omega * gaussian(uv, mu, sigma);
     }
     color.rgb = mix(color.rgb, vec3(0.0), clamp(degradation, 0.0, 1.0));

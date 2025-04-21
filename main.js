@@ -800,10 +800,12 @@ function updateEffects() {
 
   // Update LightDegradation uniform
   if (uniforms.lightDegradation) {
-    const kernels = allUniforms["LightDegradation"][2].value;
+    const center = allUniforms["LightDegradation"][2].value;
     uniforms.lightDegradation.value.isActive = allUniforms["LightDegradation"][0].value;
     uniforms.lightDegradation.value.order = allUniforms["LightDegradation"][1].value;
-    uniforms.lightDegradation.value.kernels = kernels.map((arr) => new THREE.Vector4(...arr));
+    uniforms.lightDegradation.value.centers = center.map((arr) => new THREE.Vector2(...arr));
+    uniforms.lightDegradation.value.sigma = allUniforms["LightDegradation"][3].value;
+    uniforms.lightDegradation.value.omega = allUniforms["LightDegradation"][4].value;
   }
 
   // Update RotationDistortion uniform
@@ -972,7 +974,9 @@ function createPlane(texture) {
         value: {
           isActive: allUniforms["LightDegradation"][0].defaultValue,
           order: allUniforms["LightDegradation"][1].defaultValue,
-          kernels: allUniforms["LightDegradation"][2].defaultValue.map((arr) => new THREE.Vector4(...arr))
+          centers: allUniforms["LightDegradation"][2].defaultValue.map((arr) => new THREE.Vector2(...arr)),
+          sigma: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
+          omega: allUniforms["LightDegradation"][4].defaultValue.map((x) => x)
         }
       },
       rotationDistortion: {
