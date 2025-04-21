@@ -108,7 +108,7 @@ function extractEffectStructs(code) {
 }
 
 function extractFloatMetadata(body) {
-  const floatRegex = /float\s+(\w+)\s*;\s*\/\/\s*min:\s*([-\d.]+)\s*max:\s*([-\d.]+)\s*default:\s*([-\d.]+)/g;
+  const floatRegex = /float\s+(\w+)(?:\[\s*\d+\s*\])?\s*;\s*\/\/\s*min:\s*([-\d.]+)\s*max:\s*([-\d.]+)\s*default:\s*([-\d.]+)/g;
   return [...body.matchAll(floatRegex)].map(m => ({
       name: m[1],
       min: m[2],
@@ -800,12 +800,12 @@ function updateEffects() {
 
   // Update LightDegradation uniform
   if (uniforms.lightDegradation) {
-    const center = allUniforms["LightDegradation"][2].value;
     uniforms.lightDegradation.value.isActive = allUniforms["LightDegradation"][0].value;
     uniforms.lightDegradation.value.order = allUniforms["LightDegradation"][1].value;
-    uniforms.lightDegradation.value.centers = center.map((arr) => new THREE.Vector2(...arr));
-    uniforms.lightDegradation.value.sigma = allUniforms["LightDegradation"][3].value;
-    uniforms.lightDegradation.value.omega = allUniforms["LightDegradation"][4].value;
+    uniforms.lightDegradation.value.x = allUniforms["LightDegradation"][2].value;
+    uniforms.lightDegradation.value.y = allUniforms["LightDegradation"][3].value;
+    uniforms.lightDegradation.value.sigma = allUniforms["LightDegradation"][4].value;
+    uniforms.lightDegradation.value.omega = allUniforms["LightDegradation"][5].value;
   }
 
   // Update RotationDistortion uniform
@@ -973,10 +973,11 @@ function createPlane(texture) {
       lightDegradation: {
         value: {
           isActive: allUniforms["LightDegradation"][0].defaultValue,
-          order: allUniforms["LightDegradation"][1].defaultValue,
-          centers: allUniforms["LightDegradation"][2].defaultValue.map((arr) => new THREE.Vector2(...arr)),
-          sigma: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
-          omega: allUniforms["LightDegradation"][4].defaultValue.map((x) => x)
+          order: allUniforms["LightDegradation"][1].defaultValue,          
+          x: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
+          y: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
+          sigma: allUniforms["LightDegradation"][4].defaultValue.map((x) => x),
+          omega: allUniforms["LightDegradation"][5].defaultValue.map((x) => x)
         }
       },
       rotationDistortion: {

@@ -37,7 +37,8 @@ struct Infilling {
 struct LightDegradation {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 4
-    vec2 centers[16]; // min: (-1.0, 0.0) max: (1.0, 3.1415) default: (0.0, 0.0)
+    float x[16]; // min: -1.0 max: 1.0 default: 0.0
+    float y[16]; // min: 0.0 max: 3.1415 default: 0.0
     float sigma[16]; // min: 0.001 max: 1.0 default: 0.1
     float omega[16]; // min: 0.001 max: 1.0 default: 0.2
 };
@@ -271,7 +272,7 @@ vec4 applyLightDegradation(vec4 color, LightDegradation ld) {
     vec2 uv = vUv;
     float degradation = 0.0;
     for (int i = 0; i < 16; ++i) {
-        vec2 mu = ld.centers[i];
+        vec2 mu = vec2(ld.x[i], ld.y[i]);
         mu = perimetricToCartesian(mu);
         float sigma = ld.sigma[i];
         float omega = ld.omega[i];
