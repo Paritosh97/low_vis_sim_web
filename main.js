@@ -810,30 +810,32 @@ function updateEffects() {
 
   // Update RotationDistortion uniform
   if (uniforms.rotationDistortion) {
-    const center = allUniforms["RotationDistortion"][2].value;
     uniforms.rotationDistortion.value.isActive = allUniforms["RotationDistortion"][0].value;
     uniforms.rotationDistortion.value.order = allUniforms["RotationDistortion"][1].value;
-    uniforms.rotationDistortion.value.centers = center.map((arr) => new THREE.Vector2(...arr));
-    uniforms.rotationDistortion.value.sigmas = allUniforms["RotationDistortion"][3].value;
-    uniforms.rotationDistortion.value.weights = allUniforms["RotationDistortion"][4].value;
+    uniforms.rotationDistortion.value.x = allUniforms["RotationDistortion"][2].value;
+    uniforms.rotationDistortion.value.y = allUniforms["RotationDistortion"][3].value;
+    uniforms.rotationDistortion.value.sigma = allUniforms["RotationDistortion"][4].value;
+    uniforms.rotationDistortion.value.omega = allUniforms["RotationDistortion"][5].value;
   }
 
   // Update SpatialDistortion uniform
   if (uniforms.spatialDistortion) {
-    const center = allUniforms["SpatialDistortion"][2].value;
     uniforms.spatialDistortion.value.isActive = allUniforms["SpatialDistortion"][0].value;
     uniforms.spatialDistortion.value.order = allUniforms["SpatialDistortion"][1].value;
-    uniforms.spatialDistortion.value.centers = center.map((arr) => new THREE.Vector2(...arr));
-    uniforms.spatialDistortion.value.sigmas = allUniforms["SpatialDistortion"][3].value;
-    uniforms.spatialDistortion.value.weights = allUniforms["SpatialDistortion"][4].value;
+    uniforms.spatialDistortion.value.x = allUniforms["SpatialDistortion"][2].value;
+    uniforms.spatialDistortion.value.y = allUniforms["SpatialDistortion"][3].value;
+    uniforms.spatialDistortion.value.sigma = allUniforms["SpatialDistortion"][4].value;
+    uniforms.spatialDistortion.value.omega = allUniforms["SpatialDistortion"][5].value;
   }
 
   // Update VisualAcuityLoss uniform
   if (uniforms.visualAcuityLoss) {
-    const kernels = allUniforms["VisualAcuityLoss"][2].value;
     uniforms.visualAcuityLoss.value.isActive = allUniforms["VisualAcuityLoss"][0].value;
     uniforms.visualAcuityLoss.value.order = allUniforms["VisualAcuityLoss"][1].value;
-    uniforms.visualAcuityLoss.value.kernels = kernels.map((arr) => new THREE.Vector4(...arr));
+    uniforms.visualAcuityLoss.value.x = allUniforms["VisualAcuityLoss"][2].value;
+    uniforms.visualAcuityLoss.value.y = allUniforms["VisualAcuityLoss"][3].value;
+    uniforms.visualAcuityLoss.value.sigma = allUniforms["VisualAcuityLoss"][4].value;
+    uniforms.visualAcuityLoss.value.omega = allUniforms["VisualAcuityLoss"][5].value;
   }
 
   // Mark all uniforms for update
@@ -984,25 +986,30 @@ function createPlane(texture) {
         value: {
           isActive: allUniforms["RotationDistortion"][0].defaultValue,
           order: allUniforms["RotationDistortion"][1].defaultValue,
-          centers: allUniforms["RotationDistortion"][2].defaultValue.map((arr) => new THREE.Vector2(...arr)),
-          sigmas: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
-          weights: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x)
+          x: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
+          y: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
+          sigma: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x),
+          omega: allUniforms["RotationDistortion"][5].defaultValue.map((x) => x)
         }
       },
       spatialDistortion: {
         value: {
           isActive: allUniforms["SpatialDistortion"][0].defaultValue,
           order: allUniforms["SpatialDistortion"][1].defaultValue,
-          centers: allUniforms["SpatialDistortion"][2].defaultValue.map((arr) => new THREE.Vector2(...arr)),
-          sigmas: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
-          weights: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
+          x: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
+          y: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
+          sigma: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
+          omega: allUniforms["SpatialDistortion"][5].defaultValue.map((x) => x)
         }
       },
       visualAcuityLoss: {
         value: {
           isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
-          kernels: allUniforms["VisualAcuityLoss"][2].defaultValue.map((arr) => new THREE.Vector4(...arr))
+          x: allUniforms["VisualAcuityLoss"][2].defaultValue.map((x) => x),
+          y: allUniforms["VisualAcuityLoss"][3].defaultValue.map((x) => x),
+          sigma: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
+          omega: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x)
         }
       }
     },
