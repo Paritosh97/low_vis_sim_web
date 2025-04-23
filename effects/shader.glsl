@@ -218,38 +218,25 @@ vec2 applyInfilling(inout vec2 uv, inout vec4 color, Infilling inf) {
 vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
     if (!val.isActive) return uv;
 
-    vec2 eyeUV = perimetricToCartesian(uv);
+   const int samples = 35, LOD = 4, sLOD = 1 << LOD; 
+   int s = samples / sLOD;
+   vec2 circleCenter = vec2(0.5, 0.5);
+    float circleRadius = 0.2;
 
-    vec3 blurredColor = vec3(0.0);
-    float totalWeight = 0.0;
-
-    vec2 texelSize = vec2(1.0 / uResolution.x, 1.0 / uResolution.y);
-
-    const int kernelRadius = 4;
-
-    for (int i = 0; i < 3; ++i) {
-        vec2 center = perimetricToCartesian(vec2(val.x[i], val.y[i]));
-        float sigma = val.sigma[i];
-        float omega = val.omega[i];
-
-        float blurZoneWeight = gaussian(eyeUV, center, sigma);
-
-        for (int dx = -kernelRadius; dx <= kernelRadius; ++dx) {
-            for (int dy = -kernelRadius; dy <= kernelRadius; ++dy) {
-                vec2 offset = vec2(float(dx) * texelSize.x, float(dy) * texelSize.y);
-                vec2 sampleUV = clamp(uv + offset, vec2(0.0), vec2(1.0));
-
-                float localWeight = gaussian(offset, vec2(0.0), sigma);
-                float weight = omega * blurZoneWeight * localWeight;
-
-                blurredColor += weight * texture2D(uImage, sampleUV).rgb;
-                totalWeight += weight;
-            }
+    for (int j = 0; j < 16; j++)
+    {
+        for (int i = 0; i < samples; i++)
+        {    
+            vec4 blurredColor = vec4(0);
+            vec2 mu = vec2(val.x[j], val.y[j]);
+            mu = perimetricToCartesian(mu);            
+            float dist = length(uv - mu);
+            vec2 d = vec2(i % s, i / s) * float(sLOD) - float(samples) / 2.0;
+            blurredColor += gaussian(d, mu, 500.) * textureLod(uImage, uv + d / uResolution.xy, float(LOD));
+            float blurWeight = smoothstep(val.sigma[j] - 0.01, val.sigma[j], dist);
+            //color = mix(blurredColor, color, blurWeight);
+            color.rgb = mix(blurredColor.rgb, color.rgb, blurWeight);
         }
-    }
-
-    if (totalWeight > 0.0) {
-        color.rgb = blurredColor / totalWeight;
     }
     return uv;
 }
