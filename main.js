@@ -1090,10 +1090,10 @@ function loadImage(file) {
 async function loadDefault360Video() {
   // Create a video element
   videoElement = document.createElement('video');
-  videoElement.src = 'default.mp4'; // Ensure this path is correct
+  videoElement.src = 'default.mp4';
   videoElement.loop = true;
   videoElement.muted = true;
-  videoElement.crossOrigin = "anonymous"; // Ensure the video can be used as a texture
+  videoElement.crossOrigin = "anonymous";
 
   // Play the video
   try {
@@ -1101,33 +1101,132 @@ async function loadDefault360Video() {
     console.log('Video is playing:', videoElement.currentTime > 0);
   } catch (error) {
     console.error('Error attempting to play the video:', error);
-    return; // Exit if video fails to play
+    return;
   }
 
   // Create a video texture from the video element
   videoTexture = new THREE.VideoTexture(videoElement);
   videoTexture.minFilter = THREE.LinearFilter;
   videoTexture.magFilter = THREE.LinearFilter;
-  videoTexture.format = THREE.RGBAFormat; // Ensure the format is correct
+  videoTexture.format = THREE.RGBAFormat;
 
   // Remove any existing sphere mesh
   if (sphereMesh) {
     scene.remove(sphereMesh);
   }
 
-  // Create a sphere geometry and apply the video texture
+  // Create shader material using videoTexture
   const geometry = new THREE.SphereGeometry(500, 60, 40);
-  geometry.scale(-1, 1, 1); // Invert the sphere to show the video correctly
-  const material = new THREE.MeshBasicMaterial({ map: videoTexture });
+  //geometry.scale(-1, 1, 1); // Invert the sphere to show the video correctly
+
+  let material = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    uniforms: {
+      uImage: { value: videoTexture },
+      uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+      colorShift: {
+        value: {
+          isActive: allUniforms["ColorShift"][0].defaultValue,
+          order: allUniforms["ColorShift"][1].defaultValue,
+          severity: allUniforms["ColorShift"][2].defaultValue,
+          cvdType: allUniforms["ColorShift"][3].defaultValue
+        }
+      },
+      contrastChange: {
+        value: {
+          isActive: allUniforms["ContrastChange"][0].defaultValue,
+          order: allUniforms["ContrastChange"][1].defaultValue,
+          horizontalScale: allUniforms["ContrastChange"][2].defaultValue,
+          verticalScale: allUniforms["ContrastChange"][3].defaultValue
+        }
+      },
+      fovReduction: {
+        value: {
+          isActive: allUniforms["FovReduction"][0].defaultValue,
+          order: allUniforms["FovReduction"][1].defaultValue,
+          threshold: allUniforms["FovReduction"][2].defaultValue
+        }
+      },
+      infilling: {
+        value: {
+          isActive: allUniforms["Infilling"][0].defaultValue,
+          order: allUniforms["Infilling"][1].defaultValue,
+          infillX: allUniforms["Infilling"][2].defaultValue,
+          infillY: allUniforms["Infilling"][3].defaultValue,
+          infillSize: allUniforms["Infilling"][4].defaultValue
+        }
+      },
+      lightDegradation: {
+        value: {
+          isActive: allUniforms["LightDegradation"][0].defaultValue,
+          order: allUniforms["LightDegradation"][1].defaultValue,
+          x: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
+          y: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
+          sigma: allUniforms["LightDegradation"][4].defaultValue.map((x) => x),
+          omega: allUniforms["LightDegradation"][5].defaultValue.map((x) => x)
+        }
+      },
+      rotationDistortion: {
+        value: {
+          isActive: allUniforms["RotationDistortion"][0].defaultValue,
+          order: allUniforms["RotationDistortion"][1].defaultValue,
+          x: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
+          y: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
+          sigma: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x),
+          omega: allUniforms["RotationDistortion"][5].defaultValue.map((x) => x)
+        }
+      },
+      spatialDistortion: {
+        value: {
+          isActive: allUniforms["SpatialDistortion"][0].defaultValue,
+          order: allUniforms["SpatialDistortion"][1].defaultValue,
+          x: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
+          y: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
+          sigma: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
+          omega: allUniforms["SpatialDistortion"][5].defaultValue.map((x) => x)
+        }
+      },
+      visualAcuityLoss: {
+        value: {
+          isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
+          order: allUniforms["VisualAcuityLoss"][1].defaultValue,
+          x: allUniforms["VisualAcuityLoss"][2].defaultValue.map((x) => x),
+          y: allUniforms["VisualAcuityLoss"][3].defaultValue.map((x) => x),
+          sigma: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
+          omega: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x)
+        }
+      }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: shaderCode
+  });
   sphereMesh = new THREE.Mesh(geometry, material);
   scene.add(sphereMesh);
 
-  // Update the camera and renderer to fit the video
+  // Update camera and renderer to fit video dimensions
   updateCameraAndRenderer(videoElement.videoWidth, videoElement.videoHeight);
 
-  // Log to verify the texture is created
-  console.log('Video texture created:', videoTexture);
+  console.log('Video texture created and shader applied:', videoTexture);
 }
+
+
+function buildUniform(name, keys) {
+  const values = allUniforms[name];
+  const uniform = { isActive: values[0].defaultValue, order: values[1].defaultValue };
+  keys.forEach((key, i) => {
+    uniform[key] = Array.isArray(values[i + 2].defaultValue)
+      ? values[i + 2].defaultValue.map((x) => x)
+      : values[i + 2].defaultValue;
+  });
+  return { value: uniform };
+}
+
 
 
 async function loadDefaultImage() {

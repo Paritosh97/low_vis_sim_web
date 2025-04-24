@@ -218,27 +218,43 @@ vec2 applyInfilling(inout vec2 uv, inout vec4 color, Infilling inf) {
 vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
     if (!val.isActive) return uv;
 
-   const int samples = 35, LOD = 4, sLOD = 1 << LOD; 
-   int s = samples / sLOD;
-   vec2 circleCenter = vec2(0.5, 0.5);
-    float circleRadius = 0.2;
+    const int samples = 35;
+    const int LOD = 2;
+    const int sLOD = 1 << LOD;
+    const int s = samples / sLOD;
+    const float halfSamples = float(samples) / 2.0;
 
-    for (int j = 0; j < 16; j++)
-    {
-        for (int i = 0; i < samples; i++)
-        {    
-            vec4 blurredColor = vec4(0);
-            vec2 mu = vec2(val.x[j], val.y[j]);
-            mu = perimetricToCartesian(mu);            
-            float dist = length(uv - mu);
-            vec2 d = vec2(i % s, i / s) * float(sLOD) - float(samples) / 2.0;
-            blurredColor += gaussian(d, mu, 500.) * textureLod(uImage, uv + d / uResolution.xy, float(LOD));
-            float blurWeight = smoothstep(val.sigma[j] - 0.01, val.sigma[j], dist);
-            //color = mix(blurredColor, color, blurWeight);
-            color.rgb = mix(blurredColor.rgb, color.rgb, blurWeight);
+    vec3 finalColor = color.rgb;
+
+    for (int j = 0; j < 16; j++) {
+        vec2 mu = vec2(val.x[j], val.y[j]);
+        mu = perimetricToCartesian(mu);
+        float omega = val.omega[j] * 1000.0;
+        float sigma = val.sigma[j];
+
+        float dist = length(uv - mu);
+        float blurWeight = smoothstep(sigma - 0.01, sigma, dist);
+
+        vec3 blurredSum = vec3(0.0);
+        float weightSum = 0.0;
+
+        for (int i = 0; i < samples; i++) {
+            vec2 d = vec2(i % s, i / s) * float(sLOD) - vec2(halfSamples);
+            float g = gaussian(d, mu, omega); // Must return scalar weight
+            vec2 offsetUV = uv + d / uResolution.xy;
+            vec3 sampleColor = textureLod(uImage, offsetUV, float(LOD)).rgb;
+
+            blurredSum += sampleColor * g;
+            weightSum += g;
         }
+
+        vec3 blurredColor = (weightSum > 0.0) ? blurredSum / weightSum : color.rgb;
+        finalColor = mix(blurredColor, finalColor, blurWeight);
     }
+
+    color.rgb = finalColor;
     return uv;
+
 }
 
 vec2 applyLightDegradation(inout vec2 uv, inout vec4 color, LightDegradation ld) {
