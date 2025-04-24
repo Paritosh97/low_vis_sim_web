@@ -13,7 +13,7 @@ body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   height: 100vh;
   overflow: hidden;
-  display: flex; 
+  display: flex;
 }
 canvas {
   display: block;
@@ -25,9 +25,7 @@ canvas {
 
 /* === UI Panel === */
 #ui {
-  position: relative; /* Change from absolute to relative */
-  top: auto;
-  left: auto;
+  position: relative;
   background: #1e1e1e;
   padding: 1rem;
   border-radius: 10px;
@@ -51,6 +49,7 @@ canvas {
 
 /* === Inputs === */
 #imageLoader,
+#videoLoader,
 #exportBtn,
 #importConfig {
   width: 100%;
@@ -70,20 +69,32 @@ canvas {
   margin-top: 0.3rem;
 }
 #imageLoader:hover,
+#videoLoader:hover,
 #exportBtn:hover,
 #importConfig:hover {
   background: #383838;
 }
 
-/* === Import Button Labels (Now Above the Inputs) === */
+/* === Import Button Labels === */
 #imageLoader + label,
-#importConfig + label {
+#videoLoader + label,
+.input-label {
   display: block;
   margin-bottom: 0.3rem;
   font-size: 1rem;
   color: #ccc;
   text-align: center;
   cursor: pointer;
+}
+
+/* === Hide Video Loader and Label by Default === */
+
+#videoLoader {
+  display: none;
+}
+
+#videoLoaderLabel {
+  display: none;
 }
 
 /* === Each Effect Box === */
@@ -115,33 +126,33 @@ canvas {
 /* === Param Controls === */
 .param-control {
   display: flex;
-  flex-direction: column; /* Stack elements vertically */
-  align-items: flex-start; /* Align items to the start of the container */
-  margin-bottom: 1rem; /* Increase spacing between controls */
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 1rem;
 }
 
 .param-control label {
-  margin-bottom: 0.5rem; /* Add space below labels */
+  margin-bottom: 0.5rem;
   color: #ccc;
-  font-size: 1rem; /* Increase font size for better readability */
+  font-size: 1rem;
 }
 
 .param-control input {
   width: 100%;
-  margin-bottom: 0.5rem; /* Add space below inputs */
+  margin-bottom: 0.5rem;
   background: #2a2a2a;
   color: #ddd;
   border: 1px solid #444;
-  padding: 8px; /* Increase padding for better click area */
+  padding: 8px;
   border-radius: 5px;
-  font-size: 1rem; /* Increase font size for better readability */
+  font-size: 1rem;
 }
 
 /* === Effect Box === */
 .effect {
   background: #2b2b2b;
-  padding: 1rem; /* Increase padding for better spacing */
-  margin-bottom: 1.5rem; /* Increase margin for better separation */
+  padding: 1rem;
+  margin-bottom: 1.5rem;
   border-radius: 8px;
   border: 1px solid #3c3c3c;
 }
@@ -150,7 +161,7 @@ canvas {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.7rem; /* Increase space below header */
+  margin-bottom: 0.7rem;
   cursor: pointer;
 }
 
@@ -159,7 +170,7 @@ canvas {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 1.1rem; /* Increase font size for better readability */
+  font-size: 1.1rem;
 }
 
 /* === Dropdown for Parameters === */
@@ -167,7 +178,7 @@ canvas {
   display: none;
   margin-top: 1rem;
   padding-left: 1rem;
-  padding-top: 0.7rem; /* Increase padding for better spacing */
+  padding-top: 0.7rem;
 }
 
 /* === Effect Buttons === */
@@ -175,9 +186,9 @@ canvas {
   background: #3a3a3a;
   border: none;
   color: #ccc;
-  padding: 6px 10px; /* Increase padding for better click area */
+  padding: 6px 10px;
   border-radius: 4px;
-  font-size: 0.9rem; /* Increase font size for better readability */
+  font-size: 0.9rem;
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -198,7 +209,7 @@ canvas {
 }
 
 .effect input[type="checkbox"]:checked ~ .params-container {
-  max-height: 500px; /* Adjust based on your content */
+  max-height: 500px;
   padding-top: 10px;
 }
 

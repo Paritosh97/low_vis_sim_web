@@ -5,30 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Low Vision Simulator</title>
   <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+      {
+          "imports": {
+              "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+              "OrbitControls": "https://unpkg.com/three@0.150.1/examples/jsm/controls/OrbitControls.js"
+          }
+      }
+  </script>
 </head>
 <body>
   <div id="ui">
+    <!-- Toggle for 2D/3D Mode -->
+    <div class="input-group">
+      <label for="toggle3D">3D Mode</label>
+      <input type="checkbox" id="toggle3D" />
+    </div>
+
     <!-- Input for Image -->
     <div class="input-group">
-      <label for="imageLoader">Import Image</label>
+      <label for="imageLoader"  id="imageLoaderLabel">Import Image</label>
       <input type="file" id="imageLoader" accept="image/*" />
     </div>
-  
+
+    <!-- Input for 360 Video -->
+    <div class="input-group">
+      <label for="videoLoader" id="videoLoaderLabel">Import 360 Video</label>
+      <input type="file" id="videoLoader" accept="video/*" />
+    </div>
+
     <!-- Input for JSON Configuration -->
     <div class="input-group">
       <label for="importConfig">Import JSON</label>
       <input type="file" id="importConfig" />
     </div>
-  
+
     <!-- Export Configuration Button -->
     <button id="exportBtn">Export JSON</button>
-  
+
     <!-- Effect UI Container -->
     <div id="effectsContainer"></div>
   </div>
-  
+
   <canvas id="threeCanvas"></canvas>
-  
+
   <script type="module" src="main.js"></script>
 </body>
 </html>

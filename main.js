@@ -1,4 +1,6 @@
-import * as THREE from 'https://esm.sh/three';
+import * as THREE from 'three';
+import { OrbitControls } from 'OrbitControls';
+
 
 // DOM Elements
 const canvas = document.getElementById('threeCanvas');
@@ -7,7 +9,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 
 // Three.js Scene Setup
 const scene = new THREE.Scene();
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+let camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
 // Global Variables
 let imageMesh;
@@ -15,28 +17,38 @@ let texture;
 let shaderCode = null;
 let allUniforms = null;
 
+let is3DMode = false;
+let videoElement;
+let videoTexture;
+let sphereMesh = null; 
+
 // Constants
 const SIDEBAR_WIDTH = 340;
 
-// Initialize the application
 async function init() {
-    try {
-        shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
-        allUniforms = parseShaderUniforms(shaderCode);
-        // Build the UI
-        buildUI();
+  try {
+    // Load shader code and parse uniforms
+    shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
+    allUniforms = parseShaderUniforms(shaderCode);
 
-        // Set up event listeners
-        setupEventListeners();
+    // Build the UI
+    buildUI();
 
-        // Start animation loop
-        animate();
+    // Set up event listeners
+    setupEventListeners();
 
-        // Load default image
-        await loadDefaultImage();
-    } catch (error) {
-        console.error('Error initializing the application:', error);
+    // Start animation loop
+    animate();
+
+    // Load default content based on mode
+    if (is3DMode) {
+      await loadDefault360Video();
+    } else {
+      await loadDefaultImage();
     }
+  } catch (error) {
+    console.error('Error initializing the application:', error);
+  }
 }
 
 function parseShaderUniforms(shaderCode) {
@@ -762,9 +774,13 @@ function createUniformControl(effectName, uniform) {
 }
 
 function updateEffects() {
-  if (!imageMesh.material || !imageMesh.material.uniforms) return;
+  if (!imageMesh && !sphereMesh) return;
 
-  const uniforms = imageMesh.material.uniforms;
+  const uniforms = (imageMesh ? imageMesh.material.uniforms : sphereMesh.material.uniforms);
+
+  console.log("Updating uniforms:", uniforms);
+
+  if (!uniforms) return;
 
   // Update ColorShift uniform
   if (uniforms.colorShift) {
@@ -889,8 +905,27 @@ function animate() {
 
 // Set up event listeners
 function setupEventListeners() {
+
+  document.getElementById('toggle3D').addEventListener('change', async (e) => {
+    is3DMode = e.target.checked;
+    toggleInputsVisibility();
+    if (is3DMode) {
+      await loadDefault360Video();
+      enable3DMode();
+    } else {
+      await loadDefaultImage();
+      enable2DMode();
+    }
+  });
+
   document.getElementById('imageLoader').addEventListener('change', e => {
     if (e.target.files[0]) loadImage(e.target.files[0]);
+  });
+
+  document.getElementById('videoLoader').addEventListener('change', (e) => {
+    if (e.target.files[0]) {
+      loadVideo(e.target.files[0]);
+    }
   });
 
   // Export configuration
@@ -1052,6 +1087,49 @@ function loadImage(file) {
   );
 }
 
+async function loadDefault360Video() {
+  // Create a video element
+  videoElement = document.createElement('video');
+  videoElement.src = 'default.mp4'; // Ensure this path is correct
+  videoElement.loop = true;
+  videoElement.muted = true;
+  videoElement.crossOrigin = "anonymous"; // Ensure the video can be used as a texture
+
+  // Play the video
+  try {
+    await videoElement.play();
+    console.log('Video is playing:', videoElement.currentTime > 0);
+  } catch (error) {
+    console.error('Error attempting to play the video:', error);
+    return; // Exit if video fails to play
+  }
+
+  // Create a video texture from the video element
+  videoTexture = new THREE.VideoTexture(videoElement);
+  videoTexture.minFilter = THREE.LinearFilter;
+  videoTexture.magFilter = THREE.LinearFilter;
+  videoTexture.format = THREE.RGBAFormat; // Ensure the format is correct
+
+  // Remove any existing sphere mesh
+  if (sphereMesh) {
+    scene.remove(sphereMesh);
+  }
+
+  // Create a sphere geometry and apply the video texture
+  const geometry = new THREE.SphereGeometry(500, 60, 40);
+  geometry.scale(-1, 1, 1); // Invert the sphere to show the video correctly
+  const material = new THREE.MeshBasicMaterial({ map: videoTexture });
+  sphereMesh = new THREE.Mesh(geometry, material);
+  scene.add(sphereMesh);
+
+  // Update the camera and renderer to fit the video
+  updateCameraAndRenderer(videoElement.videoWidth, videoElement.videoHeight);
+
+  // Log to verify the texture is created
+  console.log('Video texture created:', videoTexture);
+}
+
+
 async function loadDefaultImage() {
   const loader = new THREE.TextureLoader();
   loader.load(
@@ -1073,6 +1151,83 @@ async function loadDefaultImage() {
     }
   );
 }
+
+function enable3DMode() {
+  // Switch to perspective camera
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 0, 0.1);
+
+  // Remove existing 2D plane
+  if (imageMesh) {
+    scene.remove(imageMesh);
+    imageMesh = null;
+  }
+
+  // Initialize OrbitControls
+  let controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.25;
+  controls.enableZoom = false;
+  controls.enablePan = false;
+
+  // Animation loop with controls update
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+// Enable 2D Mode
+function enable2DMode() {
+  // Switch back to orthographic camera
+  camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  // Remove sphere and re-add 2D plane
+  scene.children = scene.children.filter(child => !(child instanceof THREE.Mesh));
+  if (texture) {
+    imageMesh = createPlane(texture);
+    scene.add(imageMesh);
+  }
+}
+
+function loadVideo(file) {
+  videoElement = document.createElement('video');
+  videoElement.src = URL.createObjectURL(file);
+  videoElement.loop = true;
+  videoElement.muted = true;
+  videoElement.play();
+
+  videoTexture = new THREE.VideoTexture(videoElement);
+  videoTexture.minFilter = THREE.LinearFilter;
+  videoTexture.magFilter = THREE.LinearFilter;
+  videoTexture.format = THREE.RGBFormat;
+
+  if (is3DMode) {
+    enable3DMode();
+  }
+}
+
+function toggleInputsVisibility() {
+  const imageLoader = document.getElementById('imageLoader');
+  const videoLoader = document.getElementById('videoLoader');
+  const imageLabel = document.getElementById('imageLoaderLabel');
+  const videoLabel = document.getElementById('videoLoaderLabel');
+
+  if (is3DMode) {
+    imageLoader.style.display = 'none';
+    videoLoader.style.display = 'block';
+    imageLabel.style.display = 'none';
+    videoLabel.style.display = 'block';
+  } else {
+    imageLoader.style.display = 'block';
+    videoLoader.style.display = 'none';
+    imageLabel.style.display = 'block';
+    videoLabel.style.display = 'none';
+  }
+}
+
 
 // Initialize the application
 init();

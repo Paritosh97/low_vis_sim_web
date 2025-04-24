@@ -16,8 +16,8 @@ struct ColorShift {
 struct ContrastChange {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 1
-    float horizontalScale; // min: 0.0 max: 2.0 default: 1.0
-    float verticalScale;   // min: 0.0 max: 2.0 default: 1.0
+    float horizontalScale; // min: 0.0 max: 5.0 default: 1.0
+    float verticalScale;   // min: 0.0 max: 5.0 default: 1.0
 };
 
 struct FovReduction {
@@ -174,7 +174,7 @@ vec2 applyColorShift(inout vec2 uv, inout vec4 color, ColorShift cs) {
 
 vec2 applyContrastChange(inout vec2 uv, inout vec4 color, ContrastChange cc) {
     if (!cc.isActive) return uv;
-    color.rgb *= vec3(cc.horizontalScale, cc.verticalScale, 1.0);
+    color.rgb *= vec3(cc.horizontalScale, cc.verticalScale*10.0, 1.0);
     return uv;
 }
 
