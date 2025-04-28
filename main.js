@@ -17,6 +17,7 @@ let texture;
 let shaderCode = null;
 let allUniforms = null;
 
+let showCirclesState = false;
 let is3DMode = false;
 let videoElement;
 let videoTexture;
@@ -157,8 +158,6 @@ function extractIntRangeMetadata(body) {
   }));
 }
 
-
-
 function extractUniforms(effectBody, floatMetadata, intDropdownMetadata, intRangeMetadata, boolMetadata) {
   const propertyRegex = /(\w+)\s+(\w+)(?:\s*\[\s*(\d+)\s*\])?\s*;/g;
   const uniforms = [];
@@ -271,6 +270,12 @@ function createArray(length, defaultValue) {
 async function buildUI() {
   const container = document.getElementById('effectsContainer');
   container.innerHTML = '';
+  
+  // Create UI elements for "Show Circles"
+  const showCirclesUI = createShowCirclesUI(container);
+
+  // Store references to UI elements for event listener setup
+  window.showCirclesUI = showCirclesUI;
 
   // Collect enabled and disabled effects
   const enabled = [];
@@ -278,26 +283,96 @@ async function buildUI() {
 
   // Split effects into enabled and disabled arrays
   for (const [name, uniforms] of Object.entries(allUniforms)) {
-    if (uniforms[0].value) enabled.push([name, uniforms]);
-    else disabled.push([name, uniforms]);
+      if (uniforms[0].value) enabled.push([name, uniforms]);
+      else disabled.push([name, uniforms]);
   }
 
-  // Step 1: Sort enabled effects by their current order value
+  // Sort and build the UI as before
   enabled.sort((a, b) => a[1][1].value - b[1][1].value);
-
-  // Step 2: Reassign fresh order values starting from 0 based on their index
   enabled.forEach(([, uniforms], i) => {
-    uniforms[1].value = i;  // Reassign order based on position (0, 1, 2...)
+      uniforms[1].value = i;  // Reassign order based on position
   });
 
-  // Combine enabled and disabled effects
   const sorted = [...enabled, ...disabled];
 
-  // Step 3: Rebuild the UI with sorted effects
   for (const [effectName, effectUniforms] of sorted) {
-    const div = createEffectDiv(effectName, effectUniforms);
-    container.appendChild(div);
+      const div = createEffectDiv(effectName, effectUniforms);
+      container.appendChild(div);
   }
+}
+
+function createShowCirclesUI(container) {
+  const showCirclesContainer = document.createElement('div');
+  showCirclesContainer.className = 'special-control'; // Use the special class for styling
+
+  const showCirclesToggle = document.createElement('input');
+  showCirclesToggle.type = 'checkbox';
+  showCirclesToggle.id = 'showCirclesToggle';
+  showCirclesToggle.checked = showCirclesState; // Set the initial state
+
+  const showCirclesLabel = document.createElement('label');
+  showCirclesLabel.htmlFor = 'showCirclesToggle';
+  showCirclesLabel.textContent = 'Show Reference Circles';
+
+  const circleControlsContainer = document.createElement('div');
+  circleControlsContainer.style.display = showCirclesState ? 'block' : 'none';
+  circleControlsContainer.style.paddingTop = '10px';
+
+  const circleStepSlider = document.createElement('input');
+  circleStepSlider.type = 'range';
+  circleStepSlider.id = 'circleStepSlider';
+  circleStepSlider.min = 1;
+  circleStepSlider.max = 40;
+  circleStepSlider.value = 10;
+  circleStepSlider.step = 1;
+
+  const circleStepValue = document.createElement('span');
+  circleStepValue.textContent = '10';
+  circleStepValue.style.color = '#fff'; // Ensure text is visible
+  circleStepValue.id = 'circleStepValue'; // Add an ID to easily reference this element
+
+  // Add event listener to update the displayed number and call updateEffects
+  circleStepSlider.addEventListener('input', function() {
+      circleStepValue.textContent = this.value;
+      updateEffects();
+  });
+
+  const showSliderButton = document.createElement('button');
+  showSliderButton.textContent = 'Adjust Circle Step';
+  showSliderButton.style.marginTop = '10px';
+  showSliderButton.style.backgroundColor = '#444'; // Darker button background
+  showSliderButton.style.color = '#fff'; // White text for contrast
+  showSliderButton.style.border = 'none';
+  showSliderButton.style.padding = '5px 10px';
+  showSliderButton.style.cursor = 'pointer';
+  showSliderButton.addEventListener('click', () => {
+      circleControlsContainer.style.display = circleControlsContainer.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // Add event listener to the toggle to update the state and call updateEffects
+  showCirclesToggle.addEventListener('change', function() {
+      showCirclesState = this.checked;
+      updateEffects();
+  });
+
+  circleControlsContainer.appendChild(document.createTextNode('Visual Angle Step (degrees): '));
+  circleControlsContainer.appendChild(circleStepSlider);
+  circleControlsContainer.appendChild(circleStepValue);
+
+  showCirclesContainer.appendChild(showCirclesToggle);
+  showCirclesContainer.appendChild(showCirclesLabel);
+  showCirclesContainer.appendChild(showSliderButton);
+  showCirclesContainer.appendChild(circleControlsContainer);
+
+  container.appendChild(showCirclesContainer);
+
+  return {
+      showCirclesToggle,
+      circleControlsContainer,
+      circleStepSlider,
+      circleStepValue,
+      showSliderButton
+  };
 }
 
 function createEffectDiv(name, uniforms) {
@@ -779,9 +854,10 @@ function updateEffects() {
   const uniforms = (imageMesh ? imageMesh.material.uniforms : sphereMesh.material.uniforms);
 
   console.log("Updating uniforms:", uniforms);
+  console.log("DPI:", window.devicePixelRatio);
 
   if (!uniforms) return;
-
+  
   // Update ColorShift uniform
   if (uniforms.colorShift) {
     uniforms.colorShift.value.isActive = allUniforms["ColorShift"][0].value;
@@ -854,12 +930,24 @@ function updateEffects() {
     uniforms.visualAcuityLoss.value.omega = allUniforms["VisualAcuityLoss"][5].value;
   }
 
+  // Update ShowCircles uniform
+  if (uniforms.showCircles) {
+    uniforms.showCircles.value = showCirclesState;
+
+    const circleStepSlider = document.getElementById('circleStepSlider');
+    const circleStepValue = document.getElementById('circleStepValue');
+
+    if (circleStepSlider && circleStepValue) {
+        uniforms.circleStep.value = parseInt(circleStepSlider.value);
+        circleStepValue.textContent = circleStepSlider.value;
+    }
+  }
+
   // Mark all uniforms for update
   for (let effect in uniforms) {
     uniforms[effect].needsUpdate = true;
   }
 }
-
 
 function updateCameraAndRenderer(imgWidth, imgHeight) {
   const aspectRatio = imgWidth / imgHeight;
@@ -975,6 +1063,8 @@ function createPlane(texture) {
     uniforms: {
       uImage: { value: texture },
       uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+      showCircles: { value: false },
+      circleStep: { value: 10 },
       colorShift: {
         value: {
           isActive: allUniforms["ColorShift"][0].defaultValue,
@@ -1232,7 +1322,7 @@ function buildUniform(name, keys) {
 async function loadDefaultImage() {
   const loader = new THREE.TextureLoader();
   loader.load(
-    'amsler_grid.jpg',
+    'default.jpg',
     (tex) => {
       texture = tex;
 

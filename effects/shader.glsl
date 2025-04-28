@@ -6,6 +6,9 @@ uniform sampler2D uImage;
 uniform vec2 uResolution;
 varying vec2 vUv;
 
+uniform bool showCircles;
+uniform int circleStep;
+
 struct ColorShift {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 0
@@ -363,7 +366,38 @@ void main() {
         else if (effectType == 7) {
             uv = applyVisualAcuityLoss(uv, color, visualAcuityLoss);
         }
+    } 
+
+if (showCircles) {
+    // Define the center of the screen in normalized UV coordinates
+    vec2 center = vec2(0.5, 0.5);
+
+    // Loop through angles from 0 to 180 degrees with steps defined by circleStep
+    for (int angle = 0; angle <= 180; angle += circleStep) {
+        // Convert the angle to radians
+        float radiansAngle = radians(float(angle));
+
+        // Define eccentricity and half-meridian for perimetricToCartesian
+        vec2 perimetricCoords = vec2(0.5, radiansAngle);
+
+        // Convert the angle to Cartesian coordinates
+        vec2 point = perimetricToCartesian(perimetricCoords);
+
+        // Correct the aspect ratio by scaling the UV coordinates
+        vec2 aspectCorrectedUV = vec2((uv.x - 0.5) * 1.667 + 0.5, uv.y);
+
+        // Calculate the distance from the aspect-corrected UV to the center + point
+        float dist = distance(aspectCorrectedUV, point);
+
+        // Define the thickness of the circle's outline
+        float thickness = 0.005; // Adjust the thickness as needed
+
+        // Check if the distance is within the circle's outline
+        if (abs(dist - length(point - center)) < thickness) {
+            color.rgb = vec3(0.0, 0.0, 0.0); // Draw black circle outline
+        }
     }
+}
 
     gl_FragColor = color;
 }

@@ -274,3 +274,24 @@ canvas {
   border-radius: 4px;
   border: 1px solid #ccc;
 }
+
+.special-control {
+  border: 1px solid #555;
+  padding: 10px;
+  background-color: #1e1e1e; /* Dark background color */
+  margin: 20px 0;
+  color: #fff; /* White text for contrast */
+  font-weight: bold;
+  border-radius: 5px; /* Optional: rounded corners */
+}
+
+.special-control label,
+.special-control button,
+.special-control input[type="range"] {
+  display: block;
+  margin-top: 10px;
+}
+
+.special-control input[type="checkbox"] {
+  margin-right: 10px;
+}
