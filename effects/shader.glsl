@@ -286,6 +286,31 @@ vec3 applySpotBlur(vec2 uv, VisualAcuityLoss val, vec3 originalColor) {
     return finalColor;
 }
 
+vec3 applyReducedTunnelBlur(vec2 uv, float radius, float sigma, bool mipMapping) {
+    // Calculate the distance from the center
+    vec2 center = vec2(0.5);
+    float dist = distance(uv, center);
+
+    // Determine if the current pixel is within the central radius
+    if (dist <= radius) {
+        // Pixel is within the central region, return the original color
+        return texture(uImage, uv).rgb;
+    } else {
+        // Pixel is in the periphery, apply Gaussian blur to the central region
+
+        // Calculate the corresponding UV in the central region
+        vec2 centralUV = center + normalize(uv - center) * radius;
+
+        // Apply Gaussian blur to the centralUV
+        int blurRadius = int(ceil(3.0 * sigma));
+        vec3 blurredColor = applyGaussianBlur(centralUV, blurRadius, sigma, mipMapping);
+
+        // Blend the blurred color with the original periphery color
+        vec3 originalPeripheryColor = texture(uImage, uv).rgb;
+        float blendFactor = smoothstep(radius, radius + 0.1, dist); // Adjust blending region
+        return mix(originalPeripheryColor, blurredColor, blendFactor);
+    }
+}
 
 vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
     if (!val.isActive) return uv;
@@ -318,7 +343,9 @@ vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
 
     } else if (val.lossType == 2) {
         // Reduced-Tunnel
-        // No additional calculations needed
+        float radius = val.omega[0];
+        float sigma = val.sigma[0];
+        finalColor = applyReducedTunnelBlur(uv, radius, sigma, val.mipMapping);
 
     } else if (val.lossType == 3) {
         // Spots
@@ -328,7 +355,6 @@ vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
     color.rgb = finalColor;
     return uv;
 }
-
 
 vec2 applyLightDegradation(inout vec2 uv, inout vec4 color, LightDegradation ld) {
     if (!ld.isActive) return uv;
