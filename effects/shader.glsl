@@ -68,6 +68,7 @@ struct VisualAcuityLoss {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 7 default: 7
     bool mipMapping; // min: false max: true default: false
+    int lossType; // dropdown: (Complete, Tunnel, Reduced-Tunnel, Spots)
     float x[16]; // min: -1.0 max: 1.0 default: 0.0
     float y[16]; // min: 0.0 max: 3.1415 default: 0.0
     float sigma[16]; // min: 0.0 max: 50.0 default: 5.0
@@ -219,16 +220,12 @@ vec2 applyInfilling(inout vec2 uv, inout vec4 color, Infilling inf) {
     return uv;
 }
 
-vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
-    if (!val.isActive) return uv;
 
-    float sigma = val.sigma[0];
-    int radius = int(ceil(3.0 * sigma));
+vec3 applyGaussianBlur(vec2 uv, int radius, float sigma, bool mipMapping) {
     float weightSum = 0.0;
     vec3 blurredSum = vec3(0.0);
-
     const int LOD = 2;
-    vec2 texelSize = 1.0 / (uResolution.xy / (val.mipMapping ? float(1 << LOD) : 1.0));
+    vec2 texelSize = 1.0 / (uResolution.xy / (mipMapping ? float(1 << LOD) : 1.0));
 
     for (int y = -radius; y <= radius; ++y) {
         for (int x = -radius; x <= radius; ++x) {
@@ -236,7 +233,7 @@ vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
             float g = gaussian(offset, vec2(0.0), sigma);
             vec2 sampleUV = clamp(uv + offset * texelSize, texelSize, 1.0 - texelSize);
 
-            vec3 sampledColor = val.mipMapping
+            vec3 sampledColor = mipMapping
                 ? textureLod(uImage, sampleUV, float(LOD)).rgb
                 : texture(uImage, sampleUV).rgb;
 
@@ -245,12 +242,93 @@ vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
         }
     }
 
-    if (weightSum > 0.0) {
-        color.rgb = blurredSum / weightSum;
+    return (weightSum > 0.0) ? blurredSum / weightSum : vec3(0.0);
+}
+
+vec3 applySpotBlur(vec2 uv, VisualAcuityLoss val, vec3 originalColor) {
+    const int samples = 35;
+    const int LOD = 2;
+    const int sLOD = 1 << LOD;
+    const int s = samples / sLOD;
+    const float halfSamples = float(samples) / 2.0;
+
+    vec3 finalColor = originalColor;
+
+    for (int j = 0; j < 16; j++) {
+        vec2 mu = vec2(val.x[j], val.y[j]);
+        mu = perimetricToCartesian(mu);
+        float omega = val.omega[j] * 1000.0;
+        float sigma = val.sigma[j] * 0.01;
+
+        float dist = length(uv - mu);
+        float blurWeight = smoothstep(sigma - 0.01, sigma, dist);
+
+        vec3 blurredSum = vec3(0.0);
+        float weightSum = 0.0;
+
+        for (int i = 0; i < samples; i++) {
+            vec2 d = vec2(i % s, i / s) * float(sLOD) - vec2(halfSamples);
+            float g = gaussian(d, mu, omega);
+            vec2 offsetUV = uv + d / uResolution.xy;
+
+            vec3 sampleColor = val.mipMapping
+                ? textureLod(uImage, offsetUV, float(LOD)).rgb
+                : texture(uImage, offsetUV).rgb;
+
+            blurredSum += sampleColor * g;
+            weightSum += g;
+        }
+
+        vec3 blurredColor = (weightSum > 0.0) ? blurredSum / weightSum : originalColor;
+        finalColor = mix(blurredColor, finalColor, blurWeight);
     }
 
+    return finalColor;
+}
+
+
+vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
+    if (!val.isActive) return uv;
+
+    vec3 originalColor = texture(uImage, uv).rgb;
+    vec3 finalColor = originalColor;
+
+    if (val.lossType == 0) {
+        // Complete
+        float sigma = val.sigma[0];
+        int radius = int(ceil(3.0 * sigma));
+        finalColor = applyGaussianBlur(uv, radius, sigma, val.mipMapping);
+
+    } else if (val.lossType == 1) {
+        // Tunnel
+        vec2 center = vec2(0.5);
+        float dist = distance(uv, center);
+        float minRadius = 0.1;
+        float maxRadius = 0.6;
+        float blurFactor = smoothstep(minRadius, maxRadius, dist);
+
+        float maxSigma = val.sigma[0];
+        float sigma = mix(0.0, maxSigma, blurFactor);
+
+        if (sigma >= 0.001) {
+            int radius = int(ceil(3.0 * sigma));
+            vec3 blurredColor = applyGaussianBlur(uv, radius, sigma, val.mipMapping);
+            finalColor = mix(originalColor, blurredColor, blurFactor);
+        }
+
+    } else if (val.lossType == 2) {
+        // Reduced-Tunnel
+        // No additional calculations needed
+
+    } else if (val.lossType == 3) {
+        // Spots
+        finalColor = applySpotBlur(uv, val, originalColor);
+    }
+
+    color.rgb = finalColor;
     return uv;
 }
+
 
 vec2 applyLightDegradation(inout vec2 uv, inout vec4 color, LightDegradation ld) {
     if (!ld.isActive) return uv;

@@ -932,10 +932,11 @@ function updateEffects() {
     uniforms.visualAcuityLoss.value.isActive = allUniforms["VisualAcuityLoss"][0].value;
     uniforms.visualAcuityLoss.value.order = allUniforms["VisualAcuityLoss"][1].value;
     uniforms.visualAcuityLoss.value.mipMapping = allUniforms["VisualAcuityLoss"][2].value;
-    uniforms.visualAcuityLoss.value.x = allUniforms["VisualAcuityLoss"][3].value;
-    uniforms.visualAcuityLoss.value.y = allUniforms["VisualAcuityLoss"][4].value;
-    uniforms.visualAcuityLoss.value.sigma = allUniforms["VisualAcuityLoss"][5].value;
-    uniforms.visualAcuityLoss.value.omega = allUniforms["VisualAcuityLoss"][6].value;
+    uniforms.visualAcuityLoss.value.lossType = allUniforms["VisualAcuityLoss"][3].value;
+    uniforms.visualAcuityLoss.value.x = allUniforms["VisualAcuityLoss"][4].value;
+    uniforms.visualAcuityLoss.value.y = allUniforms["VisualAcuityLoss"][5].value;
+    uniforms.visualAcuityLoss.value.sigma = allUniforms["VisualAcuityLoss"][6].value;
+    uniforms.visualAcuityLoss.value.omega = allUniforms["VisualAcuityLoss"][7].value;
   }
 
   // Update ShowCircles uniform
@@ -1140,10 +1141,11 @@ function createPlane(texture) {
           isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          x: allUniforms["VisualAcuityLoss"][3].defaultValue.map((x) => x),
-          y: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
-          omega: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x)
+          lossType: allUniforms["ColorShift"][3].defaultValue,
+          x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
+          y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
+          sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
+          omega: allUniforms["VisualAcuityLoss"][7].defaultValue.map((x) => x)
         }
       }
     },
@@ -1290,10 +1292,11 @@ async function loadDefault360Video() {
           isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          x: allUniforms["VisualAcuityLoss"][3].defaultValue.map((x) => x),
-          y: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
-          omega: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x)
+          lossType: allUniforms["ColorShift"][3].defaultValue,
+          x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
+          y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
+          sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
+          omega: allUniforms["VisualAcuityLoss"][7].defaultValue.map((x) => x)
         }
       }
     },
@@ -1486,10 +1489,11 @@ function loadVideo(file) {
           isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          x: allUniforms["VisualAcuityLoss"][3].defaultValue.map((x) => x),
-          y: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
-          omega: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x)
+          lossType: allUniforms["ColorShift"][3].defaultValue,
+          x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
+          y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
+          sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
+          omega: allUniforms["VisualAcuityLoss"][7].defaultValue.map((x) => x)
         }
       }
     },
