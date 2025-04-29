@@ -318,22 +318,29 @@ function createShowCirclesUI(container) {
   circleControlsContainer.style.display = showCirclesState ? 'block' : 'none';
   circleControlsContainer.style.paddingTop = '10px';
 
-  const circleStepSlider = document.createElement('input');
-  circleStepSlider.type = 'range';
-  circleStepSlider.id = 'circleStepSlider';
-  circleStepSlider.min = 1;
-  circleStepSlider.max = 40;
-  circleStepSlider.value = 10;
-  circleStepSlider.step = 1;
+  // Retrieve the current value from the shader uniform
+  const currentCircleEccStepValue = imageMesh
+    ? imageMesh.material.uniforms.circleEccStep.value
+    : sphereMesh
+    ? sphereMesh.material.uniforms.circleEccStep.value
+    : 10; // Default to 10 if no mesh is present
 
-  const circleStepValue = document.createElement('span');
-  circleStepValue.textContent = '10';
-  circleStepValue.style.color = '#fff'; // Ensure text is visible
-  circleStepValue.id = 'circleStepValue'; // Add an ID to easily reference this element
+  const circleEccStepSlider = document.createElement('input');
+  circleEccStepSlider.type = 'range';
+  circleEccStepSlider.id = 'circleEccStepSlider';
+  circleEccStepSlider.min = 1;
+  circleEccStepSlider.max = 40;
+  circleEccStepSlider.value = currentCircleEccStepValue; // Use the shader value
+  circleEccStepSlider.step = 1;
+
+  const circleEccStepValue = document.createElement('span');
+  circleEccStepValue.textContent = currentCircleEccStepValue; // Use the shader value
+  circleEccStepValue.style.color = '#fff'; // Ensure text is visible
+  circleEccStepValue.id = 'circleEccStepValue'; // Add an ID to easily reference this element
 
   // Add event listener to update the displayed number and call updateEffects
-  circleStepSlider.addEventListener('input', function() {
-      circleStepValue.textContent = this.value;
+  circleEccStepSlider.addEventListener('input', function() {
+      circleEccStepValue.textContent = this.value;
       updateEffects();
   });
 
@@ -356,8 +363,8 @@ function createShowCirclesUI(container) {
   });
 
   circleControlsContainer.appendChild(document.createTextNode('Visual Angle Step (degrees): '));
-  circleControlsContainer.appendChild(circleStepSlider);
-  circleControlsContainer.appendChild(circleStepValue);
+  circleControlsContainer.appendChild(circleEccStepSlider);
+  circleControlsContainer.appendChild(circleEccStepValue);
 
   showCirclesContainer.appendChild(showCirclesToggle);
   showCirclesContainer.appendChild(showCirclesLabel);
@@ -369,11 +376,12 @@ function createShowCirclesUI(container) {
   return {
       showCirclesToggle,
       circleControlsContainer,
-      circleStepSlider,
-      circleStepValue,
+      circleEccStepSlider,
+      circleEccStepValue,
       showSliderButton
   };
 }
+
 
 function createEffectDiv(name, uniforms) {
   const div = document.createElement('div');
@@ -934,12 +942,12 @@ function updateEffects() {
   if (uniforms.showCircles) {
     uniforms.showCircles.value = showCirclesState;
 
-    const circleStepSlider = document.getElementById('circleStepSlider');
-    const circleStepValue = document.getElementById('circleStepValue');
+    const circleEccStepSlider = document.getElementById('circleEccStepSlider');
+    const circleEccStepValue = document.getElementById('circleEccStepValue');
 
-    if (circleStepSlider && circleStepValue) {
-        uniforms.circleStep.value = parseInt(circleStepSlider.value);
-        circleStepValue.textContent = circleStepSlider.value;
+    if (circleEccStepSlider && circleEccStepValue) {
+        uniforms.circleEccStep.value = parseInt(circleEccStepSlider.value);
+        circleEccStepValue.textContent = circleEccStepSlider.value;
     }
   }
 
@@ -1064,7 +1072,7 @@ function createPlane(texture) {
       uImage: { value: texture },
       uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
       showCircles: { value: false },
-      circleStep: { value: 10 },
+      circleEccStep: { value: 10 },
       colorShift: {
         value: {
           isActive: allUniforms["ColorShift"][0].defaultValue,

@@ -7,7 +7,7 @@ uniform vec2 uResolution;
 varying vec2 vUv;
 
 uniform bool showCircles;
-uniform int circleStep;
+uniform int circleEccStep;
 
 struct ColorShift {
     bool isActive;  // min: false max: true default: false
@@ -360,36 +360,39 @@ void main() {
         }
     } 
 
-if (showCircles) {
-    // Define the center of the screen in normalized UV coordinates
-    vec2 center = vec2(0.5, 0.5);
+    if (showCircles) {
+        // Define the center of the screen in normalized UV coordinates
+        vec2 center = vec2(0.5, 0.5);
+        int circleAngleStep = 1;
 
-    // Loop through angles from 0 to 180 degrees with steps defined by circleStep
-    for (int angle = 0; angle <= 180; angle += circleStep) {
-        // Convert the angle to radians
-        float radiansAngle = radians(float(angle));
+        // Loop through desired eccentricities (in degrees)
+        for (int eccDeg = 0; eccDeg <= 110; eccDeg += circleEccStep) {
+            float ecc = radians(float(eccDeg)); // convert eccentricity to radians
 
-        // Define eccentricity and half-meridian for perimetricToCartesian
-        vec2 perimetricCoords = vec2(0.5, radiansAngle);
+            // Loop around the circle (0 to 360 degrees)
+            for (int angle = 0; angle < 360; angle += circleAngleStep) {
+                float radiansAngle = radians(float(angle));
 
-        // Convert the angle to Cartesian coordinates
-        vec2 point = perimetricToCartesian(perimetricCoords);
+                // Convert polar coords (eccentricity, angle) to Cartesian
+                vec2 perimetricCoords = vec2(ecc, radiansAngle);
+                vec2 point = perimetricToCartesian(perimetricCoords);
 
-        // Correct the aspect ratio by scaling the UV coordinates
-        vec2 aspectCorrectedUV = vec2((uv.x - 0.5) * 1.667 + 0.5, uv.y);
+                // Correct the aspect ratio
+                vec2 aspectCorrectedUV = vec2((uv.x - 0.5) * 1.667 + 0.5, uv.y);
 
-        // Calculate the distance from the aspect-corrected UV to the center + point
-        float dist = distance(aspectCorrectedUV, point);
+                // Calculate distance from the current fragment to the circle point
+                float dist = distance(aspectCorrectedUV, point);
 
-        // Define the thickness of the circle's outline
-        float thickness = 0.005; // Adjust the thickness as needed
+                // Thickness of the circle outline
+                float thickness = 0.002;
 
-        // Check if the distance is within the circle's outline
-        if (abs(dist - length(point - center)) < thickness) {
-            color.rgb = vec3(0.0, 0.0, 0.0); // Draw black circle outline
+                // Draw the circle line if within thickness
+                if (dist < thickness) {
+                    color.rgb = vec3(0.0, 0.0, 0.0); // black
+                }
+            }
         }
     }
-}
 
     gl_FragColor = color;
 }
