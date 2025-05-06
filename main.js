@@ -873,12 +873,20 @@ function updateEffects() {
     uniforms.colorShift.value.cvdType = allUniforms["ColorShift"][3].value;
   }
 
-  // Update ContrastChange uniform
-  if (uniforms.contrastChange) {
-    uniforms.contrastChange.value.isActive = allUniforms["ContrastChange"][0].value;
-    uniforms.contrastChange.value.order = allUniforms["ContrastChange"][1].value;
-    uniforms.contrastChange.value.horizontalScale = allUniforms["ContrastChange"][2].value;
-    uniforms.contrastChange.value.verticalScale = allUniforms["ContrastChange"][3].value;
+  // Update ContrastSensitivity uniform
+  if (uniforms.contrastSensitivity) {
+    uniforms.contrastSensitivity.value.isActive = allUniforms["ContrastSensitivity"][0].value;
+    uniforms.contrastSensitivity.value.order = allUniforms["ContrastSensitivity"][1].value;
+    uniforms.contrastSensitivity.value.horizontalScale = allUniforms["ContrastSensitivity"][2].value;
+    uniforms.contrastSensitivity.value.verticalScale = allUniforms["ContrastSensitivity"][3].value;
+  }
+  
+  // Update LightSensitivity uniform
+  if (uniforms.lightSensitivity) {
+    uniforms.lightSensitivity.value.isActive = allUniforms["LightSensitivity"][0].value;
+    uniforms.lightSensitivity.value.order = allUniforms["LightSensitivity"][1].value;
+    uniforms.lightSensitivity.value.horizontalScale = allUniforms["LightSensitivity"][2].value;
+    uniforms.lightSensitivity.value.verticalScale = allUniforms["LightSensitivity"][3].value;
   }
 
   // Update FovReduction uniform
@@ -1082,12 +1090,20 @@ function createPlane(texture) {
           cvdType: allUniforms["ColorShift"][3].defaultValue
         }
       },
-      contrastChange: {
+      contrastSensitivity: {
         value: {
-          isActive: allUniforms["ContrastChange"][0].defaultValue,
-          order: allUniforms["ContrastChange"][1].defaultValue,          
-          horizontalScale: allUniforms["ContrastChange"][2].defaultValue,
-          verticalScale: allUniforms["ContrastChange"][3].defaultValue
+          isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
+          order: allUniforms["ContrastSensitivity"][1].defaultValue,          
+          horizontalScale: allUniforms["ContrastSensitivity"][2].defaultValue,
+          verticalScale: allUniforms["ContrastSensitivity"][3].defaultValue
+        }
+      },
+      lightSensitivity: {
+        value: {
+          isActive: allUniforms["LightSensitivity"][0].defaultValue,
+          order: allUniforms["LightSensitivity"][1].defaultValue,          
+          horizontalScale: allUniforms["LightSensitivity"][2].defaultValue,
+          verticalScale: allUniforms["LightSensitivity"][3].defaultValue
         }
       },
       fovReduction: {
@@ -1233,12 +1249,20 @@ async function loadDefault360Video() {
           cvdType: allUniforms["ColorShift"][3].defaultValue
         }
       },
-      contrastChange: {
+      contrastSensitivity: {
         value: {
-          isActive: allUniforms["ContrastChange"][0].defaultValue,
-          order: allUniforms["ContrastChange"][1].defaultValue,
-          horizontalScale: allUniforms["ContrastChange"][2].defaultValue,
-          verticalScale: allUniforms["ContrastChange"][3].defaultValue
+          isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
+          order: allUniforms["ContrastSensitivity"][1].defaultValue,
+          horizontalScale: allUniforms["ContrastSensitivity"][2].defaultValue,
+          verticalScale: allUniforms["ContrastSensitivity"][3].defaultValue
+        }
+      },
+      lightSensitivity: {
+        value: {
+          isActive: allUniforms["LightSensitivity"][0].defaultValue,
+          order: allUniforms["LightSensitivity"][1].defaultValue,
+          horizontalScale: allUniforms["LightSensitivity"][2].defaultValue,
+          verticalScale: allUniforms["LightSensitivity"][3].defaultValue
         }
       },
       fovReduction: {
@@ -1430,12 +1454,20 @@ function loadVideo(file) {
           cvdType: allUniforms["ColorShift"][3].defaultValue
         }
       },
-      contrastChange: {
+      contrastSensitivity: {
         value: {
-          isActive: allUniforms["ContrastChange"][0].defaultValue,
-          order: allUniforms["ContrastChange"][1].defaultValue,
-          horizontalScale: allUniforms["ContrastChange"][2].defaultValue,
-          verticalScale: allUniforms["ContrastChange"][3].defaultValue
+          isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
+          order: allUniforms["ContrastSensitivity"][1].defaultValue,
+          horizontalScale: allUniforms["ContrastSensitivity"][2].defaultValue,
+          verticalScale: allUniforms["ContrastSensitivity"][3].defaultValue
+        }
+      },
+      lightSensitivity: {
+        value: {
+          isActive: allUniforms["LightSensitivity"][0].defaultValue,
+          order: allUniforms["LightSensitivity"][1].defaultValue,
+          horizontalScale: allUniforms["LightSensitivity"][2].defaultValue,
+          verticalScale: allUniforms["LightSensitivity"][3].defaultValue
         }
       },
       fovReduction: {

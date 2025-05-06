@@ -11,27 +11,34 @@ uniform int circleEccStep;
 
 struct ColorShift {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 7 default: 0
+    int order;  // min: 0 max: 8 default: 0
     float severity;  // min: 0.0 max: 1.0 default: 0.5
     int cvdType;     // dropdown: (Protanomaly, Deuteranomaly, Tritanomaly)
 };
 
-struct ContrastChange {
+struct ContrastSensitivity {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 7 default: 1
+    int order;  // min: 0 max: 8 default: 1
+    float horizontalScale; // min: 0.0 max: 5.0 default: 1.0
+    float verticalScale;   // min: 0.0 max: 5.0 default: 1.0
+};
+
+struct LightSensitivity {
+    bool isActive;  // min: false max: true default: false
+    int order;  // min: 0 max: 8 default: 2
     float horizontalScale; // min: 0.0 max: 5.0 default: 1.0
     float verticalScale;   // min: 0.0 max: 5.0 default: 1.0
 };
 
 struct FovReduction {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 7 default: 2
+    int order;  // min: 0 max: 8 default: 3
     float threshold; // min: 0.0 max: 1.0 default: 0.5
 };
 
 struct Infilling {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 7 default: 3
+    int order;  // min: 0 max: 8 default: 4
     float infillX; // min: -1.0 max: 1.0 default: 0.0
     float infillY; // min: 0.0 max: 3.1415 default: 0.0
     float infillSize; // min: 0.001 max: 1.0 default: 0.2
@@ -39,7 +46,7 @@ struct Infilling {
 
 struct LightDegradation {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 7 default: 4
+    int order;  // min: 0 max: 8 default: 5
     float x[16]; // min: -1.0 max: 1.0 default: 0.0
     float y[16]; // min: 0.0 max: 3.1415 default: 0.0
     float sigma[16]; // min: 0.001 max: 1.0 default: 0.1
@@ -48,7 +55,7 @@ struct LightDegradation {
 
 struct RotationDistortion {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 7 default: 5
+    int order;  // min: 0 max: 8 default: 6
     float x[3]; // min: -1.0 max: 1.0 default: 0.0
     float y[3]; // min: 0.0 max: 3.1415 default: 0.0
     float sigma[3]; // min: 0.001 max: 1.0 default: 0.1
@@ -57,7 +64,7 @@ struct RotationDistortion {
 
 struct SpatialDistortion {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 7 default: 6
+    int order;  // min: 0 max: 8 default: 7
     float x[3]; // min: -1.0 max: 1.0 default: 0.0
     float y[3]; // min: 0.0 max: 3.1415 default: 0.0
     float sigma[3]; // min: 0.001 max: 1.0 default: 0.1
@@ -66,7 +73,7 @@ struct SpatialDistortion {
 
 struct VisualAcuityLoss {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 7 default: 7
+    int order;  // min: 0 max: 8 default: 8
     bool mipMapping; // min: false max: true default: false
     int lossType; // dropdown: (Complete, Tunnel, Reduced-Tunnel, Spots)
     float x[16]; // min: -1.0 max: 1.0 default: 0.0
@@ -77,7 +84,8 @@ struct VisualAcuityLoss {
 
 // Uniform instances
 uniform ColorShift colorShift;
-uniform ContrastChange contrastChange;
+uniform ContrastSensitivity contrastSensitivity;
+uniform LightSensitivity lightSensitivity;
 uniform FovReduction fovReduction;
 uniform Infilling infilling;
 uniform LightDegradation lightDegradation;
@@ -177,9 +185,17 @@ vec2 applyColorShift(inout vec2 uv, inout vec4 color, ColorShift cs) {
     return uv;
 }
 
-vec2 applyContrastChange(inout vec2 uv, inout vec4 color, ContrastChange cc) {
+vec2 applyContrastSensitivity(inout vec2 uv, inout vec4 color, ContrastSensitivity cc) {
     if (!cc.isActive) return uv;
-    color.rgb *= vec3(cc.horizontalScale, cc.verticalScale*10.0, 1.0);
+    float luminance = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+    color.rgb =  mix(vec3(0.5), color.rgb, cc.horizontalScale);
+    return uv;
+}
+
+vec2 applyLightSensitivity(inout vec2 uv, inout vec4 color, LightSensitivity cc) {
+    if (!cc.isActive) return uv;
+
+    color.rgb *= vec3(cc.horizontalScale);
     return uv;
 }
 
@@ -197,7 +213,8 @@ vec2 applyInfilling(inout vec2 uv, inout vec4 color, Infilling inf) {
     if (!inf.isActive) return uv;
     vec2 center = vec2(inf.infillX, inf.infillY);
     center = perimetricToCartesian(center);
-    float dist = distance(uv, center);
+    vec2 aspectCorrectedUV = vec2((uv.x - 0.5) * 1.667 + 0.5, uv.y);
+    float dist = distance(aspectCorrectedUV, center);
     if (dist <= inf.infillSize) {
         vec2 texel = vec2(1.0) / uResolution;
         float delta = inf.infillSize * min(uResolution.x, uResolution.y);
@@ -221,11 +238,13 @@ vec2 applyInfilling(inout vec2 uv, inout vec4 color, Infilling inf) {
 }
 
 
-vec3 applyGaussianBlur(vec2 uv, int radius, float sigma, bool mipMapping) {
+vec3 applyGaussianBlur(vec2 uv, float sigma, bool mipMapping) {
     float weightSum = 0.0;
     vec3 blurredSum = vec3(0.0);
     const int LOD = 2;
     vec2 texelSize = 1.0 / (uResolution.xy / (mipMapping ? float(1 << LOD) : 1.0));
+
+    int radius = int(ceil(sigma));
 
     for (int y = -radius; y <= radius; ++y) {
         for (int x = -radius; x <= radius; ++x) {
@@ -237,12 +256,18 @@ vec3 applyGaussianBlur(vec2 uv, int radius, float sigma, bool mipMapping) {
                 ? textureLod(uImage, sampleUV, float(LOD)).rgb
                 : texture(uImage, sampleUV).rgb;
 
+            /*if (mipmapping)
+            {
+                sigma = sigma/2.0;
+            }*/
+
             blurredSum += sampledColor * g;
             weightSum += g;
         }
     }
 
     return (weightSum > 0.0) ? blurredSum / weightSum : vec3(0.0);
+    //return vec3(0.0,0.0,0.0);
 }
 
 vec3 applySpotBlur(vec2 uv, VisualAcuityLoss val, vec3 originalColor) {
@@ -260,7 +285,9 @@ vec3 applySpotBlur(vec2 uv, VisualAcuityLoss val, vec3 originalColor) {
         float omega = val.omega[j] * 1000.0;
         float sigma = val.sigma[j] * 0.01;
 
-        float dist = length(uv - mu);
+        vec2 aspectCorrectedUV = vec2((uv.x - 0.5) * 1.667 + 0.5, uv.y);
+
+        float dist = length(aspectCorrectedUV - mu);
         float blurWeight = smoothstep(sigma - 0.01, sigma, dist);
 
         vec3 blurredSum = vec3(0.0);
@@ -269,7 +296,7 @@ vec3 applySpotBlur(vec2 uv, VisualAcuityLoss val, vec3 originalColor) {
         for (int i = 0; i < samples; i++) {
             vec2 d = vec2(i % s, i / s) * float(sLOD) - vec2(halfSamples);
             float g = gaussian(d, mu, omega);
-            vec2 offsetUV = uv + d / uResolution.xy;
+            vec2 offsetUV = aspectCorrectedUV + d / uResolution.xy;
 
             vec3 sampleColor = val.mipMapping
                 ? textureLod(uImage, offsetUV, float(LOD)).rgb
@@ -302,8 +329,7 @@ vec3 applyReducedTunnelBlur(vec2 uv, float radius, float sigma, bool mipMapping)
         vec2 centralUV = center + normalize(uv - center) * radius;
 
         // Apply Gaussian blur to the centralUV
-        int blurRadius = int(ceil(3.0 * sigma));
-        vec3 blurredColor = applyGaussianBlur(centralUV, blurRadius, sigma, mipMapping);
+        vec3 blurredColor = applyGaussianBlur(centralUV, sigma, mipMapping);
 
         // Blend the blurred color with the original periphery color
         vec3 originalPeripheryColor = texture(uImage, uv).rgb;
@@ -321,8 +347,7 @@ vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
     if (val.lossType == 0) {
         // Complete
         float sigma = val.sigma[0];
-        int radius = int(ceil(3.0 * sigma));
-        finalColor = applyGaussianBlur(uv, radius, sigma, val.mipMapping);
+        finalColor = applyGaussianBlur(uv, sigma, val.mipMapping);
 
     } else if (val.lossType == 1) {
         // Tunnel
@@ -336,8 +361,7 @@ vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
         float sigma = mix(0.0, maxSigma, blurFactor);
 
         if (sigma >= 0.001) {
-            int radius = int(ceil(3.0 * sigma));
-            vec3 blurredColor = applyGaussianBlur(uv, radius, sigma, val.mipMapping);
+            vec3 blurredColor = applyGaussianBlur(uv, sigma, val.mipMapping);
             finalColor = mix(originalColor, blurredColor, blurFactor);
         }
 
@@ -358,13 +382,14 @@ vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
 
 vec2 applyLightDegradation(inout vec2 uv, inout vec4 color, LightDegradation ld) {
     if (!ld.isActive) return uv;
+    vec2 aspectCorrectedUV = vec2((uv.x - 0.5) * 1.667 + 0.5, uv.y);
     float degradation = 0.0;
     for (int i = 0; i < 16; ++i) {
         vec2 mu = vec2(ld.x[i], ld.y[i]);
         mu = perimetricToCartesian(mu);
         float sigma = ld.sigma[i];
         float omega = ld.omega[i];
-        degradation += omega * gaussian(uv, mu, sigma);
+        degradation += omega * gaussian(aspectCorrectedUV, mu, sigma);
     }
     color.rgb = mix(color.rgb, vec3(0.0), clamp(degradation, 0.0, 1.0));
     return uv;
@@ -414,9 +439,10 @@ void main() {
         int type;
     };
 
-    Effect effects[8] = Effect[8](
+    Effect effects[9] = Effect[9](
         Effect(colorShift.order, 0),
-        Effect(contrastChange.order, 1),
+        Effect(contrastSensitivity.order, 1),
+        Effect(lightSensitivity.order, 1),
         Effect(fovReduction.order, 2),
         Effect(infilling.order, 3),
         Effect(lightDegradation.order, 4),
@@ -442,24 +468,27 @@ void main() {
             uv = applyColorShift(uv, color, colorShift);
         }
         else if (effectType == 1) {
-            uv = applyContrastChange(uv, color, contrastChange);
+            uv = applyContrastSensitivity(uv, color, contrastSensitivity);
         }
         else if (effectType == 2) {
-            uv = applyFovReduction(uv, color, fovReduction);
+            uv = applyLightSensitivity(uv, color, lightSensitivity);
         }
         else if (effectType == 3) {
-            uv = applyInfilling(uv, color, infilling);
+            uv = applyFovReduction(uv, color, fovReduction);
         }
         else if (effectType == 4) {
-            uv = applyLightDegradation(uv, color, lightDegradation);
+            uv = applyInfilling(uv, color, infilling);
         }
         else if (effectType == 5) {
-            uv = applyRotationDistortion(uv, color, rotationDistortion);
+            uv = applyLightDegradation(uv, color, lightDegradation);
         }
         else if (effectType == 6) {
-            uv = applySpatialDistortion(uv, color, spatialDistortion);
+            uv = applyRotationDistortion(uv, color, rotationDistortion);
         }
         else if (effectType == 7) {
+            uv = applySpatialDistortion(uv, color, spatialDistortion);
+        }
+        else if (effectType == 8) {
             uv = applyVisualAcuityLoss(uv, color, visualAcuityLoss);
         }
     } 
@@ -481,9 +510,7 @@ void main() {
                 vec2 perimetricCoords = vec2(ecc, radiansAngle);
                 vec2 point = perimetricToCartesian(perimetricCoords);
 
-                // Correct the aspect ratio
                 vec2 aspectCorrectedUV = vec2((uv.x - 0.5) * 1.667 + 0.5, uv.y);
-
                 // Calculate distance from the current fragment to the circle point
                 float dist = distance(aspectCorrectedUV, point);
 
