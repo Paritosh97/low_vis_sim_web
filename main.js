@@ -861,8 +861,6 @@ function updateEffects() {
 
   const uniforms = (imageMesh ? imageMesh.material.uniforms : sphereMesh.material.uniforms);
 
-  console.log("Updating uniforms:", uniforms);
-
   if (!uniforms) return;
   
   // Update ColorShift uniform
@@ -1157,7 +1155,7 @@ function createPlane(texture) {
           isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          lossType: allUniforms["ColorShift"][3].defaultValue,
+          lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
           x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
           y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
           sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
@@ -1316,7 +1314,7 @@ async function loadDefault360Video() {
           isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          lossType: allUniforms["ColorShift"][3].defaultValue,
+          lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
           x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
           y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
           sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
@@ -1359,7 +1357,7 @@ function buildUniform(name, keys) {
 async function loadDefaultImage() {
   const loader = new THREE.TextureLoader();
   loader.load(
-    'default.jpg',
+    'color.png',
     (tex) => {
       texture = tex;
 
@@ -1521,7 +1519,7 @@ function loadVideo(file) {
           isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          lossType: allUniforms["ColorShift"][3].defaultValue,
+          lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
           x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
           y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
           sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
