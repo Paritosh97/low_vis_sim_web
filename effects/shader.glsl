@@ -248,11 +248,12 @@ vec2 applyInfilling(inout vec2 uv, inout vec4 color, Infilling inf) {
 vec3 applyGaussianBlur(vec2 uv, float sigma, bool mipMapping) {
     float weightSum = 0.0;
     vec3 blurredSum = vec3(0.0);
-    const int LOD = 2;
-    vec2 texelSize = 1.0 / (uResolution.xy / (mipMapping ? float(1 << LOD) : 1.0));
 
+    const int LOD = 2; // Adjust as needed
     int radius = int(ceil(sigma));
 
+    vec2 texelSize = 1.0 / uResolution.xy;
+    
     for (int y = -radius; y <= radius; ++y) {
         for (int x = -radius; x <= radius; ++x) {
             vec2 offset = vec2(x, y);
@@ -263,19 +264,15 @@ vec3 applyGaussianBlur(vec2 uv, float sigma, bool mipMapping) {
                 ? textureLod(uImage, sampleUV, float(LOD)).rgb
                 : texture(uImage, sampleUV).rgb;
 
-            /*if (mipmapping)
-            {
-                sigma = sigma/2.0;
-            }*/
-
             blurredSum += sampledColor * g;
             weightSum += g;
         }
     }
 
     return (weightSum > 0.0) ? blurredSum / weightSum : vec3(0.0);
-    //return vec3(0.0,0.0,0.0);
 }
+
+
 
 vec3 applySpotBlur(vec2 uv, VisualAcuityLoss val, vec3 originalColor) {
     const int samples = 35;
