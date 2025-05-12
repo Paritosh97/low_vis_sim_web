@@ -889,7 +889,7 @@ function updateEffects() {
   if (uniforms.fovReduction) {
     uniforms.fovReduction.value.isActive = allUniforms["FovReduction"][0].value;
     uniforms.fovReduction.value.order = allUniforms["FovReduction"][1].value;
-    uniforms.fovReduction.value.threshold = allUniforms["FovReduction"][2].value;
+    uniforms.fovReduction.value.fov = allUniforms["FovReduction"][2].value;
   }
 
   // Update Infilling uniform
@@ -905,8 +905,8 @@ function updateEffects() {
   if (uniforms.lightDegradation) {
     uniforms.lightDegradation.value.isActive = allUniforms["LightDegradation"][0].value;
     uniforms.lightDegradation.value.order = allUniforms["LightDegradation"][1].value;
-    uniforms.lightDegradation.value.x = allUniforms["LightDegradation"][2].value;
-    uniforms.lightDegradation.value.y = allUniforms["LightDegradation"][3].value;
+    uniforms.lightDegradation.value.eccentricity = allUniforms["LightDegradation"][2].value;
+    uniforms.lightDegradation.value.halfMeredian = allUniforms["LightDegradation"][3].value;
     uniforms.lightDegradation.value.sigma = allUniforms["LightDegradation"][4].value;
     uniforms.lightDegradation.value.omega = allUniforms["LightDegradation"][5].value;
   }
@@ -915,8 +915,8 @@ function updateEffects() {
   if (uniforms.rotationDistortion) {
     uniforms.rotationDistortion.value.isActive = allUniforms["RotationDistortion"][0].value;
     uniforms.rotationDistortion.value.order = allUniforms["RotationDistortion"][1].value;
-    uniforms.rotationDistortion.value.x = allUniforms["RotationDistortion"][2].value;
-    uniforms.rotationDistortion.value.y = allUniforms["RotationDistortion"][3].value;
+    uniforms.rotationDistortion.value.eccentricity = allUniforms["RotationDistortion"][2].value;
+    uniforms.rotationDistortion.value.halfMeredian = allUniforms["RotationDistortion"][3].value;
     uniforms.rotationDistortion.value.sigma = allUniforms["RotationDistortion"][4].value;
     uniforms.rotationDistortion.value.omega = allUniforms["RotationDistortion"][5].value;
   }
@@ -925,8 +925,8 @@ function updateEffects() {
   if (uniforms.spatialDistortion) {
     uniforms.spatialDistortion.value.isActive = allUniforms["SpatialDistortion"][0].value;
     uniforms.spatialDistortion.value.order = allUniforms["SpatialDistortion"][1].value;
-    uniforms.spatialDistortion.value.x = allUniforms["SpatialDistortion"][2].value;
-    uniforms.spatialDistortion.value.y = allUniforms["SpatialDistortion"][3].value;
+    uniforms.spatialDistortion.value.eccentricity = allUniforms["SpatialDistortion"][2].value;
+    uniforms.spatialDistortion.value.halfMeredian = allUniforms["SpatialDistortion"][3].value;
     uniforms.spatialDistortion.value.sigma = allUniforms["SpatialDistortion"][4].value;
     uniforms.spatialDistortion.value.omega = allUniforms["SpatialDistortion"][5].value;
   }
@@ -937,10 +937,8 @@ function updateEffects() {
     uniforms.visualAcuityLoss.value.order = allUniforms["VisualAcuityLoss"][1].value;
     uniforms.visualAcuityLoss.value.mipMapping = allUniforms["VisualAcuityLoss"][2].value;
     uniforms.visualAcuityLoss.value.lossType = allUniforms["VisualAcuityLoss"][3].value;
-    uniforms.visualAcuityLoss.value.x = allUniforms["VisualAcuityLoss"][4].value;
-    uniforms.visualAcuityLoss.value.y = allUniforms["VisualAcuityLoss"][5].value;
-    uniforms.visualAcuityLoss.value.sigma = allUniforms["VisualAcuityLoss"][6].value;
-    uniforms.visualAcuityLoss.value.omega = allUniforms["VisualAcuityLoss"][7].value;
+    uniforms.visualAcuityLoss.value.size = allUniforms["VisualAcuityLoss"][4].value;
+    uniforms.visualAcuityLoss.value.sigma = allUniforms["VisualAcuityLoss"][5].value;
   }
 
   // Update ShowCircles uniform
@@ -1071,7 +1069,13 @@ function setupEventListeners() {
 }
 
 function createPlane(texture) {
-  const geometry = new THREE.PlaneGeometry(2, 2);
+  const aspectRatio = texture.image.width / texture.image.height;
+
+  const planeWidth = 2;
+  const planeHeight = planeWidth / aspectRatio;
+
+  const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uImage: { value: texture },
@@ -1104,7 +1108,7 @@ function createPlane(texture) {
         value: {
           isActive: allUniforms["FovReduction"][0].defaultValue,
           order: allUniforms["FovReduction"][1].defaultValue,
-          threshold: allUniforms["FovReduction"][2].defaultValue
+          fov: allUniforms["FovReduction"][2].defaultValue
         }
       },
       infilling: {
@@ -1120,8 +1124,8 @@ function createPlane(texture) {
         value: {
           isActive: allUniforms["LightDegradation"][0].defaultValue,
           order: allUniforms["LightDegradation"][1].defaultValue,          
-          x: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
-          y: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
           sigma: allUniforms["LightDegradation"][4].defaultValue.map((x) => x),
           omega: allUniforms["LightDegradation"][5].defaultValue.map((x) => x)
         }
@@ -1130,8 +1134,8 @@ function createPlane(texture) {
         value: {
           isActive: allUniforms["RotationDistortion"][0].defaultValue,
           order: allUniforms["RotationDistortion"][1].defaultValue,
-          x: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
-          y: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
           sigma: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x),
           omega: allUniforms["RotationDistortion"][5].defaultValue.map((x) => x)
         }
@@ -1140,8 +1144,8 @@ function createPlane(texture) {
         value: {
           isActive: allUniforms["SpatialDistortion"][0].defaultValue,
           order: allUniforms["SpatialDistortion"][1].defaultValue,
-          x: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
-          y: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
           sigma: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
           omega: allUniforms["SpatialDistortion"][5].defaultValue.map((x) => x)
         }
@@ -1152,10 +1156,8 @@ function createPlane(texture) {
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
           lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
-          x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
-          y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
-          sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
-          omega: allUniforms["VisualAcuityLoss"][7].defaultValue.map((x) => x)
+          size: allUniforms["VisualAcuityLoss"][4].defaultValue,
+          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue
         }
       }
     },
@@ -1261,7 +1263,7 @@ async function loadDefault360Video() {
         value: {
           isActive: allUniforms["FovReduction"][0].defaultValue,
           order: allUniforms["FovReduction"][1].defaultValue,
-          threshold: allUniforms["FovReduction"][2].defaultValue
+          fov: allUniforms["FovReduction"][2].defaultValue
         }
       },
       infilling: {
@@ -1277,8 +1279,8 @@ async function loadDefault360Video() {
         value: {
           isActive: allUniforms["LightDegradation"][0].defaultValue,
           order: allUniforms["LightDegradation"][1].defaultValue,
-          x: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
-          y: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
           sigma: allUniforms["LightDegradation"][4].defaultValue.map((x) => x),
           omega: allUniforms["LightDegradation"][5].defaultValue.map((x) => x)
         }
@@ -1287,8 +1289,8 @@ async function loadDefault360Video() {
         value: {
           isActive: allUniforms["RotationDistortion"][0].defaultValue,
           order: allUniforms["RotationDistortion"][1].defaultValue,
-          x: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
-          y: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
           sigma: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x),
           omega: allUniforms["RotationDistortion"][5].defaultValue.map((x) => x)
         }
@@ -1297,8 +1299,8 @@ async function loadDefault360Video() {
         value: {
           isActive: allUniforms["SpatialDistortion"][0].defaultValue,
           order: allUniforms["SpatialDistortion"][1].defaultValue,
-          x: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
-          y: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
           sigma: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
           omega: allUniforms["SpatialDistortion"][5].defaultValue.map((x) => x)
         }
@@ -1309,10 +1311,8 @@ async function loadDefault360Video() {
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
           lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
-          x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
-          y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
-          sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
-          omega: allUniforms["VisualAcuityLoss"][7].defaultValue.map((x) => x)
+          size: allUniforms["VisualAcuityLoss"][4].defaultValue,
+          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue
         }
       }
     },
@@ -1464,7 +1464,7 @@ function loadVideo(file) {
         value: {
           isActive: allUniforms["FovReduction"][0].defaultValue,
           order: allUniforms["FovReduction"][1].defaultValue,
-          threshold: allUniforms["FovReduction"][2].defaultValue
+          fov: allUniforms["FovReduction"][2].defaultValue
         }
       },
       infilling: {
@@ -1480,8 +1480,8 @@ function loadVideo(file) {
         value: {
           isActive: allUniforms["LightDegradation"][0].defaultValue,
           order: allUniforms["LightDegradation"][1].defaultValue,
-          x: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
-          y: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
           sigma: allUniforms["LightDegradation"][4].defaultValue.map((x) => x),
           omega: allUniforms["LightDegradation"][5].defaultValue.map((x) => x)
         }
@@ -1490,8 +1490,8 @@ function loadVideo(file) {
         value: {
           isActive: allUniforms["RotationDistortion"][0].defaultValue,
           order: allUniforms["RotationDistortion"][1].defaultValue,
-          x: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
-          y: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
           sigma: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x),
           omega: allUniforms["RotationDistortion"][5].defaultValue.map((x) => x)
         }
@@ -1500,8 +1500,8 @@ function loadVideo(file) {
         value: {
           isActive: allUniforms["SpatialDistortion"][0].defaultValue,
           order: allUniforms["SpatialDistortion"][1].defaultValue,
-          x: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
-          y: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
+          eccentricity: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
+          halfMeredian: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
           sigma: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
           omega: allUniforms["SpatialDistortion"][5].defaultValue.map((x) => x)
         }
@@ -1512,10 +1512,8 @@ function loadVideo(file) {
           order: allUniforms["VisualAcuityLoss"][1].defaultValue,
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
           lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
-          x: allUniforms["VisualAcuityLoss"][4].defaultValue.map((x) => x),
-          y: allUniforms["VisualAcuityLoss"][5].defaultValue.map((x) => x),
-          sigma: allUniforms["VisualAcuityLoss"][6].defaultValue.map((x) => x),
-          omega: allUniforms["VisualAcuityLoss"][7].defaultValue.map((x) => x)
+          size: allUniforms["VisualAcuityLoss"][4].defaultValue,
+          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue
         }
       }
     },
