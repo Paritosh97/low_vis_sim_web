@@ -875,16 +875,14 @@ function updateEffects() {
   if (uniforms.contrastSensitivity) {
     uniforms.contrastSensitivity.value.isActive = allUniforms["ContrastSensitivity"][0].value;
     uniforms.contrastSensitivity.value.order = allUniforms["ContrastSensitivity"][1].value;
-    uniforms.contrastSensitivity.value.horizontalScale = allUniforms["ContrastSensitivity"][2].value;
-    uniforms.contrastSensitivity.value.verticalScale = allUniforms["ContrastSensitivity"][3].value;
+    uniforms.contrastSensitivity.value.intensity = allUniforms["ContrastSensitivity"][2].value;
   }
   
   // Update LightSensitivity uniform
   if (uniforms.lightSensitivity) {
     uniforms.lightSensitivity.value.isActive = allUniforms["LightSensitivity"][0].value;
     uniforms.lightSensitivity.value.order = allUniforms["LightSensitivity"][1].value;
-    uniforms.lightSensitivity.value.horizontalScale = allUniforms["LightSensitivity"][2].value;
-    uniforms.lightSensitivity.value.verticalScale = allUniforms["LightSensitivity"][3].value;
+    uniforms.lightSensitivity.value.intensity = allUniforms["LightSensitivity"][2].value;
   }
 
   // Update FovReduction uniform
@@ -1092,16 +1090,14 @@ function createPlane(texture) {
         value: {
           isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
           order: allUniforms["ContrastSensitivity"][1].defaultValue,          
-          horizontalScale: allUniforms["ContrastSensitivity"][2].defaultValue,
-          verticalScale: allUniforms["ContrastSensitivity"][3].defaultValue
+          intensity: allUniforms["ContrastSensitivity"][2].defaultValue,
         }
       },
       lightSensitivity: {
         value: {
           isActive: allUniforms["LightSensitivity"][0].defaultValue,
           order: allUniforms["LightSensitivity"][1].defaultValue,          
-          horizontalScale: allUniforms["LightSensitivity"][2].defaultValue,
-          verticalScale: allUniforms["LightSensitivity"][3].defaultValue
+          intensity: allUniforms["LightSensitivity"][2].defaultValue,
         }
       },
       fovReduction: {
@@ -1251,16 +1247,14 @@ async function loadDefault360Video() {
         value: {
           isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
           order: allUniforms["ContrastSensitivity"][1].defaultValue,
-          horizontalScale: allUniforms["ContrastSensitivity"][2].defaultValue,
-          verticalScale: allUniforms["ContrastSensitivity"][3].defaultValue
+          intensity: allUniforms["ContrastSensitivity"][2].defaultValue,
         }
       },
       lightSensitivity: {
         value: {
           isActive: allUniforms["LightSensitivity"][0].defaultValue,
           order: allUniforms["LightSensitivity"][1].defaultValue,
-          horizontalScale: allUniforms["LightSensitivity"][2].defaultValue,
-          verticalScale: allUniforms["LightSensitivity"][3].defaultValue
+          intensity: allUniforms["LightSensitivity"][2].defaultValue,
         }
       },
       fovReduction: {
@@ -1357,7 +1351,7 @@ function buildUniform(name, keys) {
 async function loadDefaultImage() {
   const loader = new THREE.TextureLoader();
   loader.load(
-    'color.png',
+    'default.jpg',
     (tex) => {
       texture = tex;
 
@@ -1456,16 +1450,14 @@ function loadVideo(file) {
         value: {
           isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
           order: allUniforms["ContrastSensitivity"][1].defaultValue,
-          horizontalScale: allUniforms["ContrastSensitivity"][2].defaultValue,
-          verticalScale: allUniforms["ContrastSensitivity"][3].defaultValue
+          intensity: allUniforms["ContrastSensitivity"][2].defaultValue,
         }
       },
       lightSensitivity: {
         value: {
           isActive: allUniforms["LightSensitivity"][0].defaultValue,
           order: allUniforms["LightSensitivity"][1].defaultValue,
-          horizontalScale: allUniforms["LightSensitivity"][2].defaultValue,
-          verticalScale: allUniforms["LightSensitivity"][3].defaultValue
+          intensity: allUniforms["LightSensitivity"][2].defaultValue,
         }
       },
       fovReduction: {

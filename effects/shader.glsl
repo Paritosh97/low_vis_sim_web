@@ -9,6 +9,8 @@ varying vec2 vUv;
 uniform bool showCircles;
 uniform int circleEccStep;
 
+bool uvEffectApplied = false;
+
 struct ColorShift {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 8 default: 0
@@ -19,15 +21,13 @@ struct ColorShift {
 struct ContrastSensitivity {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 8 default: 1
-    float horizontalScale; // min: 0.0 max: 5.0 default: 1.0
-    float verticalScale;   // min: 0.0 max: 5.0 default: 1.0
+    float intensity; // min: 0.0 max: 5.0 default: 1.0
 };
 
 struct LightSensitivity {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 8 default: 2
-    float horizontalScale; // min: 0.0 max: 5.0 default: 1.0
-    float verticalScale;   // min: 0.0 max: 5.0 default: 1.0
+    float intensity; // min: 0.0 max: 5.0 default: 1.0
 };
 
 struct FovReduction {
@@ -194,15 +194,14 @@ vec2 applyColorShift(inout vec2 uv, inout vec4 color, ColorShift cs) {
 
 vec2 applyContrastSensitivity(inout vec2 uv, inout vec4 color, ContrastSensitivity cc) {
     if (!cc.isActive) return uv;
-    float luminance = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-    color.rgb =  mix(vec3(0.5), color.rgb, cc.horizontalScale);
+    color.rgb = mix(vec3(0.5), color.rgb, cc.intensity);
     return uv;
 }
 
 vec2 applyLightSensitivity(inout vec2 uv, inout vec4 color, LightSensitivity cc) {
     if (!cc.isActive) return uv;
 
-    color.rgb *= vec3(cc.horizontalScale);
+    color.rgb *= vec3(cc.intensity);
     return uv;
 }
 
@@ -324,10 +323,8 @@ vec3 applyReducedTunnelBlur(vec2 uv, float radius, float sigma, bool mipMapping)
 
     // Determine if the current pixel is within the central radius
     if (dist <= radius) {
-        // Pixel is within the central region, return the original color
         return texture(uImage, uv).rgb;
     } else {
-        // Pixel is in the periphery, apply Gaussian blur to the central region
 
         // Calculate the corresponding UV in the central region
         vec2 centralUV = center + normalize(uv - center) * radius;
@@ -345,7 +342,7 @@ vec3 applyReducedTunnelBlur(vec2 uv, float radius, float sigma, bool mipMapping)
 vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
     if (!val.isActive) return uv;
 
-    vec3 originalColor = texture(uImage, uv).rgb;
+    vec3 originalColor = color.rgb;
     vec3 finalColor = originalColor;
 
     if (val.lossType == 0) {
@@ -354,21 +351,22 @@ vec2 applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
         finalColor = applyGaussianBlur(uv, sigma, val.mipMapping);
 
     } else if (val.lossType == 1) {
-        // Tunnel
         vec2 center = vec2(0.5);
         float dist = distance(uv, center);
-        float minRadius = 0.1;
-        float maxRadius = 0.6;
-        float blurFactor = smoothstep(minRadius, maxRadius, dist);
+        float radius = val.omega[0];
 
+        // Use step function to determine if the pixel is within the radius
+        float blurFactor = step(radius, dist);
+
+        // Calculate sigma based on the blur factor
         float maxSigma = val.sigma[0];
         float sigma = mix(0.0, maxSigma, blurFactor);
 
+        // Apply blur if sigma is greater than a threshold
         if (sigma >= 0.001) {
             vec3 blurredColor = applyGaussianBlur(uv, sigma, val.mipMapping);
             finalColor = mix(originalColor, blurredColor, blurFactor);
         }
-
     } else if (val.lossType == 2) {
         // Reduced-Tunnel
         float radius = val.omega[0];
@@ -435,8 +433,6 @@ vec2 applySpatialDistortion(inout vec2 uv, inout vec4 color, SpatialDistortion s
 }
 
 void main() {
-    vec2 uv = vUv;
-    vec4 color = texture2D(uImage, uv);
 
     struct Effect {
         int order;
@@ -465,34 +461,85 @@ void main() {
         }
     }
 
+    vec4 color;
+    vec2 uv;
+
     for (int i = 8; i >= 0; i--) {
         int effectType = effects[i].type;
 
         if (effectType == 0) {
-            uv = applyColorShift(uv, color, colorShift);
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
+            uv = applyColorShift(uv, color, colorShift);            
         }
         else if (effectType == 1) {
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
             uv = applyContrastSensitivity(uv, color, contrastSensitivity);
         }
         else if (effectType == 2) {
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
             uv = applyLightSensitivity(uv, color, lightSensitivity);
         }
         else if (effectType == 3) {
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
             uv = applyFovReduction(uv, color, fovReduction);
+            uvEffectApplied = true;
         }
         else if (effectType == 4) {
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
             uv = applyInfilling(uv, color, infilling);
         }
         else if (effectType == 5) {
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
             uv = applyLightDegradation(uv, color, lightDegradation);
         }
         else if (effectType == 6) {
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
             uv = applyRotationDistortion(uv, color, rotationDistortion);
+            uvEffectApplied = true;
         }
         else if (effectType == 7) {
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
             uv = applySpatialDistortion(uv, color, spatialDistortion);
+            uvEffectApplied = true;
         }
         else if (effectType == 8) {
+            if (!uvEffectApplied)
+            {
+                uv = vUv;
+                color = texture2D(uImage, uv);
+            }
             uv = applyVisualAcuityLoss(uv, color, visualAcuityLoss);
         }
     } 
