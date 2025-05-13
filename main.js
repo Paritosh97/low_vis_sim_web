@@ -382,7 +382,6 @@ function createShowCirclesUI(container) {
   };
 }
 
-
 function createEffectDiv(name, uniforms) {
   const div = document.createElement('div');
   div.className = 'effect';
@@ -896,8 +895,8 @@ function updateEffects() {
   if (uniforms.infilling) {
     uniforms.infilling.value.isActive = allUniforms["Infilling"][0].value;
     uniforms.infilling.value.order = allUniforms["Infilling"][1].value;
-    uniforms.infilling.value.infillX = allUniforms["Infilling"][2].value;
-    uniforms.infilling.value.infillY = allUniforms["Infilling"][3].value;
+    uniforms.infilling.value.eccentricity = allUniforms["Infilling"][2].value;
+    uniforms.infilling.value.halfMeredian = allUniforms["Infilling"][3].value;
     uniforms.infilling.value.infillSize = allUniforms["Infilling"][4].value;
   }
 
@@ -939,6 +938,7 @@ function updateEffects() {
     uniforms.visualAcuityLoss.value.lossType = allUniforms["VisualAcuityLoss"][3].value;
     uniforms.visualAcuityLoss.value.size = allUniforms["VisualAcuityLoss"][4].value;
     uniforms.visualAcuityLoss.value.sigma = allUniforms["VisualAcuityLoss"][5].value;
+    uniforms.visualAcuityLoss.value.edge_smoothness = allUniforms["VisualAcuityLoss"][6].value;
   }
 
   // Update ShowCircles uniform
@@ -961,28 +961,30 @@ function updateEffects() {
 }
 
 function updateCameraAndRenderer(imgWidth, imgHeight) {
-  const aspectRatio = imgWidth / imgHeight;
-  const canvasAspect = (window.innerWidth - SIDEBAR_WIDTH) / window.innerHeight; // Account for sidebar
+  const canvasWidth = window.innerWidth - SIDEBAR_WIDTH;
+  const canvasHeight = window.innerHeight;
+  const canvasAspect = canvasWidth / canvasHeight;
+  const imageAspect = imgWidth / imgHeight;
 
-  // Update renderer size
-  renderer.setSize(window.innerWidth - SIDEBAR_WIDTH, window.innerHeight);
+  // Update renderer
+  renderer.setSize(canvasWidth, canvasHeight);
 
-  // Update camera to maintain image aspect ratio
-  if (aspectRatio > canvasAspect) {
-    // Image is wider than canvas
-    const height = 2 / aspectRatio;
-    camera.top = height / 2;
-    camera.bottom = -height / 2;
-    camera.left = -1;
-    camera.right = 1;
+  let viewWidth, viewHeight;
+
+  if (imageAspect > canvasAspect) {
+    // Image is wider than canvas: fit width
+    viewWidth = 2;
+    viewHeight = 2 / imageAspect * canvasAspect;
   } else {
-    // Image is taller than canvas
-    const width = 2 * aspectRatio;
-    camera.left = -width / 2;
-    camera.right = width / 2;
-    camera.top = 1;
-    camera.bottom = -1;
+    // Image is taller than canvas: fit height
+    viewHeight = 2;
+    viewWidth = 2 * imageAspect / canvasAspect;
   }
+
+  camera.left = -viewWidth / 2;
+  camera.right = viewWidth / 2;
+  camera.top = viewHeight / 2;
+  camera.bottom = -viewHeight / 2;
 
   camera.updateProjectionMatrix();
 }
@@ -1069,17 +1071,35 @@ function setupEventListeners() {
 }
 
 function createPlane(texture) {
-  const aspectRatio = texture.image.width / texture.image.height;
 
-  const planeWidth = 2;
-  const planeHeight = planeWidth / aspectRatio;
+  const availWidth = window.innerWidth - SIDEBAR_WIDTH;
+  const availHeight = window.innerHeight;
 
-  const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+  const windowAspectRatio = availWidth / availHeight;
+
+  const imageWidth = texture.image.width;
+  const imageHeight = texture.image.height;
+
+  const imageAspectRatio = imageWidth / imageHeight;
+
+  let W, H;
+
+  // Adjust the plane size based on the image aspect ratio
+  if (imageAspectRatio > windowAspectRatio) {
+    W = 2;
+    H = 2 * windowAspectRatio / imageAspectRatio;
+  } else {
+    // Image is taller than window
+    W = 2 * imageAspectRatio / windowAspectRatio;
+    H = 2;
+  }
+  
+  const geometry = new THREE.PlaneGeometry(W, H);
 
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uImage: { value: texture },
-      uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+      uResolution: { value: new THREE.Vector2(availWidth, availHeight) },
       showCircles: { value: false },
       circleEccStep: { value: 10 },
       colorShift: {
@@ -1115,8 +1135,8 @@ function createPlane(texture) {
         value: {
           isActive: allUniforms["Infilling"][0].defaultValue,
           order: allUniforms["Infilling"][1].defaultValue,
-          infillX: allUniforms["Infilling"][2].defaultValue,
-          infillY: allUniforms["Infilling"][3].defaultValue,
+          eccentricity: allUniforms["Infilling"][2].defaultValue,
+          halfMeredian: allUniforms["Infilling"][3].defaultValue,
           infillSize: allUniforms["Infilling"][4].defaultValue
         }
       },
@@ -1157,7 +1177,8 @@ function createPlane(texture) {
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
           lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
           size: allUniforms["VisualAcuityLoss"][4].defaultValue,
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue
+          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue,
+          edge_smoothness: allUniforms["VisualAcuityLoss"][6].defaultValue
         }
       }
     },
@@ -1165,7 +1186,7 @@ function createPlane(texture) {
       varying vec2 vUv;
       void main() {
         vUv = uv;
-        gl_Position = vec4(position, 1.0);
+        gl_Position = vec4( position, 1.0 );
       }
     `,
     fragmentShader: shaderCode
@@ -1270,8 +1291,8 @@ async function loadDefault360Video() {
         value: {
           isActive: allUniforms["Infilling"][0].defaultValue,
           order: allUniforms["Infilling"][1].defaultValue,
-          infillX: allUniforms["Infilling"][2].defaultValue,
-          infillY: allUniforms["Infilling"][3].defaultValue,
+          eccentricity: allUniforms["Infilling"][2].defaultValue,
+          halfMeredian: allUniforms["Infilling"][3].defaultValue,
           infillSize: allUniforms["Infilling"][4].defaultValue
         }
       },
@@ -1312,7 +1333,8 @@ async function loadDefault360Video() {
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
           lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
           size: allUniforms["VisualAcuityLoss"][4].defaultValue,
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue
+          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue,
+          edge_smoothness: allUniforms["VisualAcuityLoss"][6].defaultValue
         }
       }
     },
@@ -1345,8 +1367,6 @@ function buildUniform(name, keys) {
   });
   return { value: uniform };
 }
-
-
 
 async function loadDefaultImage() {
   const loader = new THREE.TextureLoader();
@@ -1471,8 +1491,8 @@ function loadVideo(file) {
         value: {
           isActive: allUniforms["Infilling"][0].defaultValue,
           order: allUniforms["Infilling"][1].defaultValue,
-          infillX: allUniforms["Infilling"][2].defaultValue,
-          infillY: allUniforms["Infilling"][3].defaultValue,
+          eccentricity: allUniforms["Infilling"][2].defaultValue,
+          halfMeredian: allUniforms["Infilling"][3].defaultValue,
           infillSize: allUniforms["Infilling"][4].defaultValue
         }
       },
@@ -1513,7 +1533,8 @@ function loadVideo(file) {
           mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
           lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
           size: allUniforms["VisualAcuityLoss"][4].defaultValue,
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue
+          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue,
+          edge_smoothness: allUniforms["VisualAcuityLoss"][6].defaultValue
         }
       }
     },

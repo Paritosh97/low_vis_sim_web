@@ -76,6 +76,7 @@ struct VisualAcuityLoss {
     int lossType; // dropdown: (Complete, Tunnel, Tunnel - Internal Sampling)
     float size; // min: 0.0 max: 1.0 default: 0.2
     float sigma; // min: 0.0 max: 15.0 default: 3.0
+    float edge_smoothness; // min: 0.0 max:0.05 default: 0.02
 };
 
 // Uniform instances
@@ -361,25 +362,31 @@ vec3 applyReducedTunnelBlur(vec2 uv, float radius, vec4 color, float sigma, bool
     }
 }
 
-vec3 applyReduced2TunnelBlur(vec2 uv, float radius, vec4 color, float sigma, bool mipMapping) {
-
-    // Calculate the distance from the center
+vec3 applyReduced2TunnelBlur(vec2 uv, float radius, vec4 color, float sigma, bool mipMapping, float edge_smoothness) {
     vec2 center = vec2(0.5);
-    float dist = distance(uv, center);
 
-    // Determine if the current pixel is within the central circle
-    if (dist <= radius) {
-        // Inside the circle: return the original color
+    // Use aspect-corrected UV only for distance calculation (to get perfect circle)
+    vec2 aspectCorrectedUV = uv - center;
+    aspectCorrectedUV.x *= 1.5;
+    float dist = length(aspectCorrectedUV);
+
+    // Soft edge blending range
+    float innerRadius = radius - edge_smoothness;
+    float outerRadius = radius + edge_smoothness;
+
+    // If completely inside the circle, return the original color
+    if (dist < innerRadius) {
         return color.rgb;
-    } else {
-        vec2 centralUV = center + normalize(uv - center) * radius;
-
-        // Magnify and blend the blurred color
-        vec2 magnifiedUV = center + normalize(uv - center) * (dist * radius) / vec2(uResolution.x / uResolution.y, 1.0);
-        vec3 magnifiedBlurredColor = applyGaussianBlur(magnifiedUV, sigma, mipMapping);
-
-        return magnifiedBlurredColor;
     }
+
+    // Compute blur direction and UVs (don't apply aspect ratio here)
+    vec2 direction = normalize(uv - center);
+    vec2 magnifiedUV = center + direction * (dist * radius) / vec2(1.5, 1.0);
+    vec3 magnifiedBlurredColor = applyGaussianBlur(magnifiedUV, sigma, mipMapping);
+
+    // Smooth blend based on distance
+    float blend = smoothstep(innerRadius, outerRadius, dist);
+    return mix(color.rgb, magnifiedBlurredColor, blend);
 }
 
 void applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
@@ -425,7 +432,7 @@ void applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
 
 
         // Apply the reduced tunnel blur
-        finalColor = applyReduced2TunnelBlur(uv, radius, color, sigma, val.mipMapping);
+        finalColor = applyReduced2TunnelBlur(uv, radius, color, sigma, val.mipMapping, val.edge_smoothness);
     }
 
     color.rgb = finalColor;
@@ -521,8 +528,9 @@ void main() {
         }
     }
 
-    vec4 color = texture2D(uImage, vUv);
     vec2 uv = vUv;
+    vec4 color = texture2D(uImage, uv);
+
 
     for (int i = 0; i <= 8; i++) {
         int effectType = effects[i].type;
