@@ -367,7 +367,7 @@ vec3 applyReduced2TunnelBlur(vec2 uv, float radius, vec4 color, float sigma, boo
 
     // Use aspect-corrected UV only for distance calculation (to get perfect circle)
     vec2 aspectCorrectedUV = uv - center;
-    aspectCorrectedUV.x *= 1.5;
+    aspectCorrectedUV.x *= uResolution.x / uResolution.y;  
     float dist = length(aspectCorrectedUV);
 
     // Soft edge blending range
@@ -379,9 +379,11 @@ vec3 applyReduced2TunnelBlur(vec2 uv, float radius, vec4 color, float sigma, boo
         return color.rgb;
     }
 
-    // Compute blur direction and UVs (don't apply aspect ratio here)
     vec2 direction = normalize(uv - center);
-    vec2 magnifiedUV = center + direction * (dist * radius) / vec2(1.5, 1.0);
+
+    //vec2 magnifiedUV = center + direction * (dist * radius) / (uResolution.x / uResolution.y) ;
+    vec2 magnifiedUV = center + (uv - center) * radius;
+    
     vec3 magnifiedBlurredColor = applyGaussianBlur(magnifiedUV, sigma, mipMapping);
 
     // Smooth blend based on distance

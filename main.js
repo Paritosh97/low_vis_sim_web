@@ -1093,13 +1093,13 @@ function createPlane(texture) {
     W = 2 * imageAspectRatio / windowAspectRatio;
     H = 2;
   }
-  
+
   const geometry = new THREE.PlaneGeometry(W, H);
 
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uImage: { value: texture },
-      uResolution: { value: new THREE.Vector2(availWidth, availHeight) },
+      uResolution: { value: new THREE.Vector2(imageWidth, imageHeight) },
       showCircles: { value: false },
       circleEccStep: { value: 10 },
       colorShift: {
