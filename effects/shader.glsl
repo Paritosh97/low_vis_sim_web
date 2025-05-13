@@ -361,6 +361,27 @@ vec3 applyReducedTunnelBlur(vec2 uv, float radius, vec4 color, float sigma, bool
     }
 }
 
+vec3 applyReduced2TunnelBlur(vec2 uv, float radius, vec4 color, float sigma, bool mipMapping) {
+
+    // Calculate the distance from the center
+    vec2 center = vec2(0.5);
+    float dist = distance(uv, center);
+
+    // Determine if the current pixel is within the central circle
+    if (dist <= radius) {
+        // Inside the circle: return the original color
+        return color.rgb;
+    } else {
+        vec2 centralUV = center + normalize(uv - center) * radius;
+
+        // Magnify and blend the blurred color
+        vec2 magnifiedUV = center + normalize(uv - center) * (dist * radius) / vec2(uResolution.x / uResolution.y, 1.0);
+        vec3 magnifiedBlurredColor = applyGaussianBlur(magnifiedUV, sigma, mipMapping);
+
+        return magnifiedBlurredColor;
+    }
+}
+
 void applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
     if (!val.isActive) return;
 
@@ -404,7 +425,7 @@ void applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
 
 
         // Apply the reduced tunnel blur
-        finalColor = applyReducedTunnelBlur(uv, radius, color, sigma, val.mipMapping);
+        finalColor = applyReduced2TunnelBlur(uv, radius, color, sigma, val.mipMapping);
     }
 
     color.rgb = finalColor;
@@ -541,7 +562,7 @@ void main() {
         int circleAngleStep = 1;
 
         // Loop through desired eccentricities (in degrees)
-        for (int eccDeg = 0; eccDeg <= 130; eccDeg += circleEccStep) {
+        for (int eccDeg = 0; eccDeg <= 110; eccDeg += circleEccStep) {
             float ecc = radians(float(eccDeg)); // convert eccentricity to radians
 
             // Loop around the circle (0 to 360 degrees)

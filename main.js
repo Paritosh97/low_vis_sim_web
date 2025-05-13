@@ -1372,7 +1372,7 @@ async function loadDefaultImage() {
 
 function enable3DMode() {
   // Switch to perspective camera
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera = new THREE.PerspectiveCamera(110, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 0, 0.1);
 
   // Remove existing 2D plane
