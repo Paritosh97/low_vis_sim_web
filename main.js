@@ -1056,6 +1056,7 @@ function setupEventListeners() {
         allUniforms = data.effects;
         // Rebuild UI and processing pipeline
         await buildUI();
+        updateEffects();
       } catch (err) {
         alert('Invalid config file!');
         console.error(err);
