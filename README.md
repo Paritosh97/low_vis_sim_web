@@ -4,12 +4,12 @@ Here's a **README** for your project:
 
 # Low Vision Simulation Web App
 
-This project is a web-based application designed to simulate various low vision effects on images and 360 videos. It allows users to apply multiple image effects such as light degradation, color shift, spatial distortion, and more to understand how different visual impairments affect perception.
+This project is a web-based application designed to simulate various low vision effects on images and 360 images. It allows users to apply multiple image effects such as light degradation, color shift, spatial distortion, and more to understand how different visual impairments affect perception.
 
 ## Usage
 
 - **Import Image:** Upload an image to apply various visual effects.
-- **Import 360 Video:** Upload an image to apply various visual effects.
+- **Import 360 Image:** Upload a 360 image to apply various visual effects.
 - **Apply Effects:** Apply different perceptual low vision effects.
 - **Reorder Effects:** Effects can be reordered to change the order in which they're applied.
 - **Export Configurations:** Save the current effect settings as a JSON file.

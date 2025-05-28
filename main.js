@@ -18,9 +18,9 @@ let shaderCode = null;
 let allUniforms = null;
 
 let showCirclesState = false;
-let is3DMode = false;
-let videoElement;
-let videoTexture;
+let is360Mode = false;
+let element360;
+let texture360;
 let sphereMesh = null; 
 
 // Constants
@@ -42,8 +42,8 @@ async function init() {
     animate();
 
     // Load default content based on mode
-    if (is3DMode) {
-      await loadDefault360Video();
+    if (is360Mode) {
+      await loadDefault360Image();
     } else {
       await loadDefaultImage();
     }
@@ -1007,12 +1007,12 @@ function animate() {
 // Set up event listeners
 function setupEventListeners() {
 
-  document.getElementById('toggle3D').addEventListener('change', async (e) => {
-    is3DMode = e.target.checked;
+  document.getElementById('toggle360').addEventListener('change', async (e) => {
+    is360Mode = e.target.checked;
     toggleInputsVisibility();
-    if (is3DMode) {
-      await loadDefault360Video();
-      enable3DMode();
+    if (is360Mode) {
+      await loadDefault360Image();
+      enable360Mode();
     } else {
       await loadDefaultImage();
       enable2DMode();
@@ -1023,9 +1023,9 @@ function setupEventListeners() {
     if (e.target.files[0]) loadImage(e.target.files[0]);
   });
 
-  document.getElementById('videoLoader').addEventListener('change', (e) => {
+  document.getElementById('360Loader').addEventListener('change', (e) => {
     if (e.target.files[0]) {
-      loadVideo(e.target.files[0]);
+      load360(e.target.files[0]);
     }
   });
 
@@ -1222,42 +1222,40 @@ function loadImage(file) {
   );
 }
 
-async function loadDefault360Video() {
-  // Create a video element
-  videoElement = document.createElement('video');
-  videoElement.src = 'default.mp4';
-  videoElement.loop = true;
-  videoElement.muted = true;
-  videoElement.crossOrigin = "anonymous";
+async function loadDefault360Image() {
+  // Create a 360 element
+  element360 = document.createElement('image');
+  element360.src = 'default360.jpg';
+  element360.loop = true;
+  element360.muted = true;
+  element360.crossOrigin = "anonymous";
 
-  // Play the video
   try {
-    await videoElement.play();
-    console.log('Video is playing:', videoElement.currentTime > 0);
+    await element360.play();
+    console.log('Image is added:', element360.currentTime > 0);
   } catch (error) {
-    console.error('Error attempting to play the video:', error);
+    console.error('Error attempting to add the image:', error);
     return;
   }
 
-  // Create a video texture from the video element
-  videoTexture = new THREE.VideoTexture(videoElement);
-  videoTexture.minFilter = THREE.LinearFilter;
-  videoTexture.magFilter = THREE.LinearFilter;
-  videoTexture.format = THREE.RGBAFormat;
+  // Create a 360 texture from the 360 element
+  texture360 = new THREE.VideoTexture(element360);
+  texture360.minFilter = THREE.LinearFilter;
+  texture360.magFilter = THREE.LinearFilter;
+  texture360.format = THREE.RGBAFormat;
 
   // Remove any existing sphere mesh
   if (sphereMesh) {
     scene.remove(sphereMesh);
   }
 
-  // Create shader material using videoTexture
+  // Create shader material using texture360
   const geometry = new THREE.SphereGeometry(500, 60, 40);
-  //geometry.scale(-1, 1, 1); // Invert the sphere to show the video correctly
 
   let material = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     uniforms: {
-      uImage: { value: videoTexture },
+      uImage: { value: texture360 },
       uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
       colorShift: {
         value: {
@@ -1351,12 +1349,8 @@ async function loadDefault360Video() {
   sphereMesh = new THREE.Mesh(geometry, material);
   scene.add(sphereMesh);
 
-  // Update camera and renderer to fit video dimensions
-  updateCameraAndRenderer(videoElement.videoWidth, videoElement.videoHeight);
-
-  console.log('Video texture created and shader applied:', videoTexture);
+  updateCameraAndRenderer(element360.videoWidth, element360.videoHeight);
 }
-
 
 function buildUniform(name, keys) {
   const values = allUniforms[name];
@@ -1391,7 +1385,7 @@ async function loadDefaultImage() {
   );
 }
 
-function enable3DMode() {
+function enable360Mode() {
   // Switch to perspective camera
   camera = new THREE.PerspectiveCamera(110, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 0, 0.1);
@@ -1431,153 +1425,48 @@ function enable2DMode() {
   }
 }
 
-function loadVideo(file) {
-  // Create and configure the video element
-  videoElement = document.createElement('video');
-  videoElement.src = URL.createObjectURL(file);
-  videoElement.loop = true;
-  videoElement.muted = true;
-  videoElement.crossOrigin = "anonymous";
-  videoElement.play();
+function load360(file) {
+  const loader = new THREE.TextureLoader();
+  const url = URL.createObjectURL(file);
 
-  // Create the video texture
-  videoTexture = new THREE.VideoTexture(videoElement);
-  videoTexture.minFilter = THREE.LinearFilter;
-  videoTexture.magFilter = THREE.LinearFilter;
-  videoTexture.format = THREE.RGBAFormat;
+  loader.load(
+    url,
+    (tex) => {
+      URL.revokeObjectURL(url);
+      texture = tex;
 
-  // Remove existing sphere mesh if any
-  if (sphereMesh) {
-    scene.remove(sphereMesh);
-  }
-
-  // Create the geometry and custom shader material
-  const geometry = new THREE.SphereGeometry(500, 120, 40);
-
-  const material = new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    uniforms: {
-      uImage: { value: videoTexture },
-      uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-      colorShift: {
-        value: {
-          isActive: allUniforms["ColorShift"][0].defaultValue,
-          order: allUniforms["ColorShift"][1].defaultValue,
-          severity: allUniforms["ColorShift"][2].defaultValue,
-          cvdType: allUniforms["ColorShift"][3].defaultValue
-        }
-      },
-      contrastSensitivity: {
-        value: {
-          isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
-          order: allUniforms["ContrastSensitivity"][1].defaultValue,
-          intensity: allUniforms["ContrastSensitivity"][2].defaultValue,
-        }
-      },
-      lightSensitivity: {
-        value: {
-          isActive: allUniforms["LightSensitivity"][0].defaultValue,
-          order: allUniforms["LightSensitivity"][1].defaultValue,
-          intensity: allUniforms["LightSensitivity"][2].defaultValue,
-        }
-      },
-      fovReduction: {
-        value: {
-          isActive: allUniforms["FovReduction"][0].defaultValue,
-          order: allUniforms["FovReduction"][1].defaultValue,
-          fov: allUniforms["FovReduction"][2].defaultValue
-        }
-      },
-      infilling: {
-        value: {
-          isActive: allUniforms["Infilling"][0].defaultValue,
-          order: allUniforms["Infilling"][1].defaultValue,
-          eccentricity: allUniforms["Infilling"][2].defaultValue,
-          halfMeredian: allUniforms["Infilling"][3].defaultValue,
-          infillSize: allUniforms["Infilling"][4].defaultValue
-        }
-      },
-      lightDegradation: {
-        value: {
-          isActive: allUniforms["LightDegradation"][0].defaultValue,
-          order: allUniforms["LightDegradation"][1].defaultValue,
-          eccentricity: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["LightDegradation"][4].defaultValue.map((x) => x),
-          omega: allUniforms["LightDegradation"][5].defaultValue.map((x) => x)
-        }
-      },
-      rotationDistortion: {
-        value: {
-          isActive: allUniforms["RotationDistortion"][0].defaultValue,
-          order: allUniforms["RotationDistortion"][1].defaultValue,
-          eccentricity: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x),
-          omega: allUniforms["RotationDistortion"][5].defaultValue.map((x) => x)
-        }
-      },
-      spatialDistortion: {
-        value: {
-          isActive: allUniforms["SpatialDistortion"][0].defaultValue,
-          order: allUniforms["SpatialDistortion"][1].defaultValue,
-          eccentricity: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
-          omega: allUniforms["SpatialDistortion"][5].defaultValue.map((x) => x)
-        }
-      },
-      visualAcuityLoss: {
-        value: {
-          isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
-          order: allUniforms["VisualAcuityLoss"][1].defaultValue,
-          mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
-          size: allUniforms["VisualAcuityLoss"][4].defaultValue,
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue,
-          edge_smoothness: allUniforms["VisualAcuityLoss"][6].defaultValue
-        }
+      if (imageMesh) {
+        scene.remove(imageMesh);
       }
+
+      imageMesh = createPlane(texture);
+      scene.add(imageMesh);
+      updateCameraAndRenderer(texture.image.width, texture.image.height);
     },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: shaderCode
-  });
-
-  // Add to the scene
-  sphereMesh = new THREE.Mesh(geometry, material);
-  scene.add(sphereMesh);
-
-  // Optional 3D mode trigger
-  if (is3DMode) {
-    enable3DMode();
-  }
-
-  console.log('Custom shader material applied to uploaded video.');
+    undefined,
+    (error) => {
+      URL.revokeObjectURL(url);
+      console.error('An error occurred while loading the texture:', error);
+    }
+  );
 }
-
 
 function toggleInputsVisibility() {
   const imageLoader = document.getElementById('imageLoader');
-  const videoLoader = document.getElementById('videoLoader');
+  const loader360 = document.getElementById('360Loader');
   const imageLabel = document.getElementById('imageLoaderLabel');
-  const videoLabel = document.getElementById('videoLoaderLabel');
+  const label360 = document.getElementById('360LoaderLabel');
 
-  if (is3DMode) {
+  if (is360Mode) {
     imageLoader.style.display = 'none';
-    videoLoader.style.display = 'block';
+    loader360.style.display = 'block';
     imageLabel.style.display = 'none';
-    videoLabel.style.display = 'block';
+    label360.style.display = 'block';
   } else {
     imageLoader.style.display = 'block';
-    videoLoader.style.display = 'none';
+    loader360.style.display = 'none';
     imageLabel.style.display = 'block';
-    videoLabel.style.display = 'none';
+    label360.style.display = 'none';
   }
 }
 
