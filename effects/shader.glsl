@@ -1,6 +1,5 @@
 precision highp float;
 
-
 // Common uniforms
 uniform sampler2D uImage;
 uniform vec2 uResolution;
@@ -16,57 +15,10 @@ struct ColorShift {
     int cvdType;     // dropdown: (Protanomaly, Deuteranomaly, Tritanomaly)
 };
 
-struct ContrastSensitivity {
-    bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 1
-    float intensity; // min: 0.0 max: 5.0 default: 1.0
-};
-
-struct LightSensitivity {
+struct LightEffect {
     bool isActive;  // min: false max: true default: false
     int order;  // min: 0 max: 8 default: 2
     float intensity; // min: 0.0 max: 5.0 default: 1.0
-};
-
-struct FovReduction {
-    bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 3
-    float fov; // min: 0.0 max: 110.0 default: 110.0
-};
-
-struct Infilling {
-    bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 4
-    float eccentricity; // min: -1.0 max: 1.0 default: 0.0
-    float halfMeredian; // min: 0.0 max: 3.1415 default: 0.0
-    float infillSize; // min: 0.001 max: 55.0 default: 5.0
-};
-
-struct LightDegradation {
-    bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 5
-    float eccentricity[16]; // min: -1.0 max: 1.0 default: 0.0
-    float halfMeredian[16]; // min: 0.0 max: 3.1415 default: 0.0
-    float sigma[16]; // min: 0.001 max: 1.0 default: 0.1
-    float omega[16]; // min: 0.001 max: 1.0 default: 0.2
-};
-
-struct RotationDistortion {
-    bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 6
-    float eccentricity[3]; // min: -1.0 max: 1.0 default: 0.0
-    float halfMeredian[3]; // min: 0.0 max: 3.1415 default: 0.0
-    float sigma[3]; // min: 0.001 max: 1.0 default: 0.1
-    float omega[3]; // min: 0.001 max: 1.0 default: 0.2
-};
-
-struct SpatialDistortion {
-    bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 7
-    float eccentricity[3]; // min: -1.0 max: 1.0 default: 0.0
-    float halfMeredian[3]; // min: 0.0 max: 3.1415 default: 0.0
-    float sigma[3]; // min: 0.001 max: 1.0 default: 0.1
-    float omega[3]; // min: 0.001 max: 1.0 default: 0.2
 };
 
 struct VisualAcuityLoss {
@@ -81,13 +33,7 @@ struct VisualAcuityLoss {
 
 // Uniform instances
 uniform ColorShift colorShift;
-uniform ContrastSensitivity contrastSensitivity;
-uniform LightSensitivity lightSensitivity;
-uniform FovReduction fovReduction;
-uniform Infilling infilling;
-uniform LightDegradation lightDegradation;
-uniform RotationDistortion rotationDistortion;
-uniform SpatialDistortion spatialDistortion;
+uniform LightEffect lightEffect;
 uniform VisualAcuityLoss visualAcuityLoss;
 
 // Utility functions
@@ -95,6 +41,10 @@ float gaussian(vec2 p, vec2 mu, float sigma) {
     vec2 diff = p - mu;
     float exponent = dot(diff, diff) / (2.0 * sigma * sigma);
     return exp(-exponent);
+}
+
+float luminance(vec3 color) {
+    return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
 vec2 rotate(vec2 p, float angle) {
@@ -187,76 +137,30 @@ void applyColorShift(inout vec2 uv, inout vec4 color, ColorShift cs) {
     color.rgb =  clamp(lin, 0.0, 1.0) * 255.0;
 }
 
-void applyContrastSensitivity(inout vec2 uv, inout vec4 color, ContrastSensitivity cs) {
-    if (!cs.isActive) return;
-    color.rgb = mix(vec3(0.5), color.rgb, cs.intensity);
+void applyMipBloom(inout vec2 uv, inout vec4 color, float bloomStrength) {
+    float threshold = 1.0;
+
+    // Extract bright areas from base level
+    vec3 baseColor = color.rgb;
+    float l = luminance(baseColor);
+    vec3 highlight = l > threshold ? baseColor : vec3(0.0);
+
+    // Sample from lower MIP levels to simulate blur
+    vec3 mip1 = textureLod(uImage, uv, 1.0).rgb;
+    vec3 mip2 = textureLod(uImage, uv, 2.0).rgb;
+    vec3 mip3 = textureLod(uImage, uv, 3.0).rgb;
+
+    // Combine with weights
+    vec3 bloom = highlight * 0.4 + mip1 * 0.3 + mip2 * 0.2 + mip3 * 0.1;
+
+    // Add bloom to final color
+    color = vec4(baseColor + bloom * bloomStrength, 1.0);
 }
 
-void applyLightSensitivity(inout vec2 uv, inout vec4 color, LightSensitivity ls) {
-    if (!ls.isActive) return;
+void applyLightEffect(inout vec2 uv, inout vec4 color, LightEffect le) {
+    if (!le.isActive) return;
 
-    color.rgb *= vec3(ls.intensity);
-}
-
-void applyFovReduction(inout vec2 uv, inout vec4 color, FovReduction fr) {
-    if (!fr.isActive) return;
-    
-    float referenceFov = 110.0;
-    vec2 center = vec2(0.5);
-    
-    // Convert angles to radians
-    float halfRefRad = radians(referenceFov) * 0.5;
-    float halfThresholdRad = radians(fr.fov) * 0.5;
-    
-    // Calculate zoom factor
-    float zoom = tan(halfRefRad) / max(tan(halfThresholdRad), 0.001);
-    
-    // Remap UVs with zoom
-    vec2 scaledUV = mix(center, uv, 1.0 / zoom);
-    
-    uv = clamp(scaledUV, vec2(0.0), vec2(1.0));
-    
-    color = texture2D(uImage, uv);
-}
-
-void applyInfilling(inout vec2 uv, inout vec4 color, Infilling inf) {
-    if (!inf.isActive) return;
-
-    vec2 center = vec2(inf.eccentricity, inf.halfMeredian);
-    center = perimetricToCartesian(center);
-
-    vec2 aspectCorrectedUV = uv - 0.5; // Move to range [-0.5, 0.5]
-    aspectCorrectedUV.x *= uResolution.x / uResolution.y;
-    aspectCorrectedUV += 0.5; // Move back to range [0, 1]
-
-    float latitude = mix(-3.1415 * 0.5, 3.1415 * 0.5, center.y);
-    float scale = cos(latitude); // correct for latitude distortion
-    float infillRadiusUV = radians(inf.infillSize) / 3.1415; // from angle to fraction of 180°
-    infillRadiusUV *= scale; // apply latitude correction
-
-    float dist = distance(aspectCorrectedUV, center);
-    if (dist <= infillRadiusUV) {
-        // Sample neighboring texels
-        vec2 texel = vec2(1.0) / uResolution;
-
-        // Offset in UV terms based on angle
-        float delta = infillRadiusUV; // already in UV space
-        vec2 offset = vec2(delta);
-
-        vec3 up    = texture2D(uImage, center + vec2(0.0, offset.y)).rgb;
-        vec3 right = texture2D(uImage, center + vec2(offset.x, 0.0)).rgb;
-        vec3 down  = texture2D(uImage, center - vec2(0.0, offset.y)).rgb;
-        vec3 left  = texture2D(uImage, center - vec2(offset.x, 0.0)).rgb;
-
-        float d1 = offset.y, d2 = offset.x, d3 = offset.y, d4 = offset.x;
-        float w1 = 1.0 / (d1 * d1 + 1e-6);
-        float w2 = 1.0 / (d2 * d2 + 1e-6);
-        float w3 = 1.0 / (d3 * d3 + 1e-6);
-        float w4 = 1.0 / (d4 * d4 + 1e-6);
-        float wSum = w1 + w2 + w3 + w4;
-
-        color.rgb = (up * w1 + right * w2 + down * w3 + left * w4) / wSum;
-    }
+    color.rgb *= vec3(le.intensity);
 }
 
 vec3 applyGaussianBlur(vec2 uv, float sigma, bool mipMapping) {
@@ -286,80 +190,39 @@ vec3 applyGaussianBlur(vec2 uv, float sigma, bool mipMapping) {
     return (weightSum > 0.0) ? blurredSum / weightSum : vec3(0.0);
 }
 
-/*
-vec3 applySpotBlur(vec2 uv, VisualAcuityLoss val, vec3 originalColor) {
-    const int samples = 35;
-    const int LOD = 2;
-    const int sLOD = 1 << LOD;
-    const int s = samples / sLOD;
-    const float halfSamples = float(samples) / 2.0;
 
-    vec3 finalColor = originalColor;
+void bilateralFilter(inout vec2 uv, inout vec4 color, float sigma_S, float sigma_L) {
+    float sigS = max(sigma_S, 1e-5);
+    float sigL = max(sigma_L, 1e-5);
 
-    vec2 aspectCorrectedUV = uv - 0.5; // Move to range [-0.5, 0.5]
-    aspectCorrectedUV.x *= uResolution.x / uResolution.y;
-    aspectCorrectedUV += 0.5; // Move back to range [0, 1]
+    float facS = -1.0 / (2.0 * sigS * sigS);
+    float facL = -1.0 / (2.0 * sigL * sigL);
 
-    for (int j = 0; j < 16; j++) {
-        vec2 mu = vec2(val.eccentricity[j], val.halfMeredian[j]);
-        mu = perimetricToCartesian(mu);
-        float omega = val.omega[j] * 1000.0;
-        float sigma = val.sigma[j] * 0.01;
+    float sumW = 0.0;
+    vec4 sumC = vec4(0.0);
+    float halfSize = 4.0;
+    vec2 textureSize = 1.0 / uResolution.xy;
 
-        
+    float l = luminance(color.rgb);
 
-        float dist = length(aspectCorrectedUV - mu);
-        float blurWeight = smoothstep(sigma - 0.01, sigma, dist);
+    for (float j = -halfSize; j <= halfSize; j++) {
+        for (float k = -halfSize; k <= halfSize; k++) {
+            vec2 pos = vec2(j, k);
+            vec4 offsetColor = textureLod(uImage, uv + pos * textureSize, 2.0);
 
-        vec3 blurredSum = vec3(0.0);
-        float weightSum = 0.0;
+            float distS = length(pos);
+            float distL = luminance(offsetColor.rgb) - l;
 
-        for (int i = 0; i < samples; i++) {
-            vec2 d = vec2(i % s, i / s) * float(sLOD) - vec2(halfSamples);
-            float g = gaussian(d, mu, omega);
-            vec2 offsetUV = aspectCorrectedUV + d / uResolution.xy;
+            float wS = exp(facS * distS * distS);
+            float wL = exp(facL * distL * distL);
+            float w = wS * wL;
 
-            vec3 sampleColor = val.mipMapping
-                ? textureLod(uImage, offsetUV, float(LOD)).rgb
-                : texture(uImage, offsetUV).rgb;
-
-            blurredSum += sampleColor * g;
-            weightSum += g;
+            sumW += w;
+            sumC += offsetColor * w;
         }
-
-        vec3 blurredColor = (weightSum > 0.0) ? blurredSum / weightSum : originalColor;
-        finalColor = mix(blurredColor, finalColor, blurWeight);
     }
 
-    return finalColor;
-}
-*/
-
-vec3 applyReducedTunnelBlur(vec2 uv, float radius, vec4 color, float sigma, bool mipMapping) {
-    // Correct UV coordinates for aspect ratio
-    vec2 aspectCorrectedUV = uv - 0.5;
-    aspectCorrectedUV.x *= uResolution.x / uResolution.y;
-    aspectCorrectedUV += 0.5;
-
-    // Calculate the distance from the center
-    vec2 center = vec2(0.5);
-    float dist = distance(aspectCorrectedUV, center);
-
-    // Determine if the current pixel is within the central radius
-    if (dist <= radius) {
-        return color.rgb;
-    } else {
-        // Calculate the corresponding UV in the central region
-        vec2 centralUV = center + normalize(aspectCorrectedUV - center) * radius;
-
-        // Apply Gaussian blur to the centralUV
-        vec3 blurredColor = applyGaussianBlur(centralUV, sigma, mipMapping);
-
-        // Blend the blurred color with the original periphery color
-        vec3 originalPeripheryColor = color.rgb;
-        float blendFactor = smoothstep(radius, radius + 0.1, dist);
-        return mix(originalPeripheryColor, blurredColor, blendFactor);
-    }
+    color = vec4(sumC.rgb / sumW, 1.0);
 }
 
 vec3 applyReduced2TunnelBlur(vec2 uv, float radius, vec4 color, float sigma, bool mipMapping, float edge_smoothness) {
@@ -441,66 +304,6 @@ void applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val
     return;
 }
 
-void applyLightDegradation(inout vec2 uv, inout vec4 color, LightDegradation ld) {
-    if (!ld.isActive) return;
-    vec2 aspectCorrectedUV = uv - 0.5; // Move to range [-0.5, 0.5]
-    aspectCorrectedUV.x *= uResolution.x / uResolution.y;
-    aspectCorrectedUV += 0.5; // Move back to range [0, 1]
-    float degradation = 0.0;
-    for (int i = 0; i < 16; ++i) {
-        vec2 mu = vec2(ld.eccentricity[i], ld.halfMeredian[i]);
-        mu = perimetricToCartesian(mu);
-        float sigma = ld.sigma[i];
-        float omega = ld.omega[i];
-        degradation += omega * gaussian(aspectCorrectedUV, mu, sigma);
-    }
-    color.rgb = mix(color.rgb, vec3(0.0), clamp(degradation, 0.0, 1.0));
-    return;
-}
-
-void applyRotationDistortion(inout vec2 uv, inout vec4 color, RotationDistortion rd) {
-    if (!rd.isActive)
-    {
-        return;
-    }
-
-    vec2 resolution = vec2(1.0, 1.0); // TODO pass this from the js side
-    vec2 p = uv * resolution;
-    vec2 rotatedP = p;
-    for (int i = 0; i < 3; ++i) {
-        vec2 center = vec2(rd.eccentricity[i], rd.halfMeredian[i]);
-        center = perimetricToCartesian(center);
-        float sigma = rd.sigma[i];
-        float omega = rd.omega[i];
-        float falloff = gaussian(p, center, sigma);
-        float angle = omega * falloff;
-        vec2 relativeP = p - center;
-        vec2 rotated = rotate(relativeP, angle) + center;
-        rotatedP += (rotated - p);
-    }
-    uv = rotatedP / resolution;
-    color = texture2D(uImage, uv);
-    return;
-}
-
-void applySpatialDistortion(inout vec2 uv, inout vec4 color, SpatialDistortion sd) {
-    if (!sd.isActive)
-    {
-        return;
-    }
-    
-    for (int i = 0; i < 3; ++i) {
-        vec2 center = vec2(sd.eccentricity[i], sd.halfMeredian[i]);
-        center = perimetricToCartesian(center);
-        float sigma = sd.sigma[i];
-        float omega = sd.omega[i];
-        float falloff = gaussian(uv, center, sigma);
-        uv += omega * falloff * (uv - center);
-    }
-    color = texture2D(uImage, uv);
-    return;
-}
-
 void main() {
 
     struct Effect {
@@ -508,20 +311,14 @@ void main() {
         int type;
     };
 
-    Effect effects[9] = Effect[9](
+    Effect effects[3] = Effect[3](
         Effect(colorShift.order, 0),
-        Effect(contrastSensitivity.order, 1),
-        Effect(lightSensitivity.order, 2),
-        Effect(fovReduction.order, 3),
-        Effect(infilling.order, 4),
-        Effect(lightDegradation.order, 5),
-        Effect(rotationDistortion.order, 6),
-        Effect(spatialDistortion.order, 7),
-        Effect(visualAcuityLoss.order, 8)
+        Effect(lightEffect.order, 1),
+        Effect(visualAcuityLoss.order, 2)
     );
 
-    for (int i = 0; i < 9; i++) {
-        for (int j = i + 1; j < 9; j++) {
+    for (int i = 0; i < 3; i++) {
+        for (int j = i + 1; j < 3; j++) {
             if (effects[i].order > effects[j].order) {
                 Effect temp = effects[i];
                 effects[i] = effects[j];
@@ -534,32 +331,14 @@ void main() {
     vec4 color = texture2D(uImage, uv);
 
 
-    for (int i = 0; i <= 8; i++) {
+    for (int i = 0; i <= 2; i++) {
         int effectType = effects[i].type;
 
         if (effectType == 0) {    
             applyColorShift(uv, color, colorShift);            
         }
-        else if (effectType == 1) {
-            applyContrastSensitivity(uv, color, contrastSensitivity);
-        }
         else if (effectType == 2) {
-            applyLightSensitivity(uv, color, lightSensitivity);
-        }
-        else if (effectType == 3) {
-            applyFovReduction(uv, color, fovReduction);            
-        }
-        else if (effectType == 4) {
-            applyInfilling(uv, color, infilling);
-        }
-        else if (effectType == 5) {
-            applyLightDegradation(uv, color, lightDegradation);
-        }
-        else if (effectType == 6) {
-            applyRotationDistortion(uv, color, rotationDistortion);
-        }
-        else if (effectType == 7) {
-            applySpatialDistortion(uv, color, spatialDistortion);
+            applyLightEffect(uv, color, lightEffect);
         }
         else if (effectType == 8) {
             applyVisualAcuityLoss(uv, color, visualAcuityLoss);

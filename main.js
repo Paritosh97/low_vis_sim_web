@@ -870,64 +870,11 @@ function updateEffects() {
     uniforms.colorShift.value.cvdType = allUniforms["ColorShift"][3].value;
   }
 
-  // Update ContrastSensitivity uniform
-  if (uniforms.contrastSensitivity) {
-    uniforms.contrastSensitivity.value.isActive = allUniforms["ContrastSensitivity"][0].value;
-    uniforms.contrastSensitivity.value.order = allUniforms["ContrastSensitivity"][1].value;
-    uniforms.contrastSensitivity.value.intensity = allUniforms["ContrastSensitivity"][2].value;
-  }
-  
-  // Update LightSensitivity uniform
-  if (uniforms.lightSensitivity) {
-    uniforms.lightSensitivity.value.isActive = allUniforms["LightSensitivity"][0].value;
-    uniforms.lightSensitivity.value.order = allUniforms["LightSensitivity"][1].value;
-    uniforms.lightSensitivity.value.intensity = allUniforms["LightSensitivity"][2].value;
-  }
-
-  // Update FovReduction uniform
-  if (uniforms.fovReduction) {
-    uniforms.fovReduction.value.isActive = allUniforms["FovReduction"][0].value;
-    uniforms.fovReduction.value.order = allUniforms["FovReduction"][1].value;
-    uniforms.fovReduction.value.fov = allUniforms["FovReduction"][2].value;
-  }
-
-  // Update Infilling uniform
-  if (uniforms.infilling) {
-    uniforms.infilling.value.isActive = allUniforms["Infilling"][0].value;
-    uniforms.infilling.value.order = allUniforms["Infilling"][1].value;
-    uniforms.infilling.value.eccentricity = allUniforms["Infilling"][2].value;
-    uniforms.infilling.value.halfMeredian = allUniforms["Infilling"][3].value;
-    uniforms.infilling.value.infillSize = allUniforms["Infilling"][4].value;
-  }
-
-  // Update LightDegradation uniform
-  if (uniforms.lightDegradation) {
-    uniforms.lightDegradation.value.isActive = allUniforms["LightDegradation"][0].value;
-    uniforms.lightDegradation.value.order = allUniforms["LightDegradation"][1].value;
-    uniforms.lightDegradation.value.eccentricity = allUniforms["LightDegradation"][2].value;
-    uniforms.lightDegradation.value.halfMeredian = allUniforms["LightDegradation"][3].value;
-    uniforms.lightDegradation.value.sigma = allUniforms["LightDegradation"][4].value;
-    uniforms.lightDegradation.value.omega = allUniforms["LightDegradation"][5].value;
-  }
-
-  // Update RotationDistortion uniform
-  if (uniforms.rotationDistortion) {
-    uniforms.rotationDistortion.value.isActive = allUniforms["RotationDistortion"][0].value;
-    uniforms.rotationDistortion.value.order = allUniforms["RotationDistortion"][1].value;
-    uniforms.rotationDistortion.value.eccentricity = allUniforms["RotationDistortion"][2].value;
-    uniforms.rotationDistortion.value.halfMeredian = allUniforms["RotationDistortion"][3].value;
-    uniforms.rotationDistortion.value.sigma = allUniforms["RotationDistortion"][4].value;
-    uniforms.rotationDistortion.value.omega = allUniforms["RotationDistortion"][5].value;
-  }
-
-  // Update SpatialDistortion uniform
-  if (uniforms.spatialDistortion) {
-    uniforms.spatialDistortion.value.isActive = allUniforms["SpatialDistortion"][0].value;
-    uniforms.spatialDistortion.value.order = allUniforms["SpatialDistortion"][1].value;
-    uniforms.spatialDistortion.value.eccentricity = allUniforms["SpatialDistortion"][2].value;
-    uniforms.spatialDistortion.value.halfMeredian = allUniforms["SpatialDistortion"][3].value;
-    uniforms.spatialDistortion.value.sigma = allUniforms["SpatialDistortion"][4].value;
-    uniforms.spatialDistortion.value.omega = allUniforms["SpatialDistortion"][5].value;
+  // Update LightEffect uniform
+  if (uniforms.lightEffect) {
+    uniforms.lightEffect.value.isActive = allUniforms["LightEffect"][0].value;
+    uniforms.lightEffect.value.order = allUniforms["LightEffect"][1].value;
+    uniforms.lightEffect.value.intensity = allUniforms["LightEffect"][2].value;
   }
 
   // Update VisualAcuityLoss uniform
@@ -1111,64 +1058,11 @@ function createPlane(texture) {
           cvdType: allUniforms["ColorShift"][3].defaultValue
         }
       },
-      contrastSensitivity: {
+      lightEffect: {
         value: {
-          isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
-          order: allUniforms["ContrastSensitivity"][1].defaultValue,          
-          intensity: allUniforms["ContrastSensitivity"][2].defaultValue,
-        }
-      },
-      lightSensitivity: {
-        value: {
-          isActive: allUniforms["LightSensitivity"][0].defaultValue,
-          order: allUniforms["LightSensitivity"][1].defaultValue,          
-          intensity: allUniforms["LightSensitivity"][2].defaultValue,
-        }
-      },
-      fovReduction: {
-        value: {
-          isActive: allUniforms["FovReduction"][0].defaultValue,
-          order: allUniforms["FovReduction"][1].defaultValue,
-          fov: allUniforms["FovReduction"][2].defaultValue
-        }
-      },
-      infilling: {
-        value: {
-          isActive: allUniforms["Infilling"][0].defaultValue,
-          order: allUniforms["Infilling"][1].defaultValue,
-          eccentricity: allUniforms["Infilling"][2].defaultValue,
-          halfMeredian: allUniforms["Infilling"][3].defaultValue,
-          infillSize: allUniforms["Infilling"][4].defaultValue
-        }
-      },
-      lightDegradation: {
-        value: {
-          isActive: allUniforms["LightDegradation"][0].defaultValue,
-          order: allUniforms["LightDegradation"][1].defaultValue,          
-          eccentricity: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["LightDegradation"][4].defaultValue.map((x) => x),
-          omega: allUniforms["LightDegradation"][5].defaultValue.map((x) => x)
-        }
-      },
-      rotationDistortion: {
-        value: {
-          isActive: allUniforms["RotationDistortion"][0].defaultValue,
-          order: allUniforms["RotationDistortion"][1].defaultValue,
-          eccentricity: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x),
-          omega: allUniforms["RotationDistortion"][5].defaultValue.map((x) => x)
-        }
-      },
-      spatialDistortion: {
-        value: {
-          isActive: allUniforms["SpatialDistortion"][0].defaultValue,
-          order: allUniforms["SpatialDistortion"][1].defaultValue,
-          eccentricity: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
-          omega: allUniforms["SpatialDistortion"][5].defaultValue.map((x) => x)
+          isActive: allUniforms["LightEffect"][0].defaultValue,
+          order: allUniforms["LightEffect"][1].defaultValue,          
+          intensity: allUniforms["LightEffect"][2].defaultValue,
         }
       },
       visualAcuityLoss: {
@@ -1222,41 +1116,25 @@ function loadImage(file) {
   );
 }
 
-async function loadDefault360Image() {
-  // Create a 360 element
-  element360 = document.createElement('image');
-  element360.src = 'default360.jpg';
-  element360.loop = true;
-  element360.muted = true;
-  element360.crossOrigin = "anonymous";
+function loadDefault360Image() {
 
-  try {
-    await element360.play();
-    console.log('Image is added:', element360.currentTime > 0);
-  } catch (error) {
-    console.error('Error attempting to add the image:', error);
-    return;
-  }
+  const loader = new THREE.TextureLoader();
+  loader.load(
+    'images/default360.jpg',
+    (tex) => {
+      texture = tex;
 
-  // Create a 360 texture from the 360 element
-  texture360 = new THREE.VideoTexture(element360);
-  texture360.minFilter = THREE.LinearFilter;
-  texture360.magFilter = THREE.LinearFilter;
-  texture360.format = THREE.RGBAFormat;
+      if (sphereMesh) {
+        scene.remove(sphereMesh);
+      }
 
-  // Remove any existing sphere mesh
-  if (sphereMesh) {
-    scene.remove(sphereMesh);
-  }
-
-  // Create shader material using texture360
-  const geometry = new THREE.SphereGeometry(500, 60, 40);
-
-  let material = new THREE.ShaderMaterial({
+    const material = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     uniforms: {
       uImage: { value: texture360 },
       uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+      showCircles: { value: false },
+      circleEccStep: { value: 10 },
       colorShift: {
         value: {
           isActive: allUniforms["ColorShift"][0].defaultValue,
@@ -1265,64 +1143,11 @@ async function loadDefault360Image() {
           cvdType: allUniforms["ColorShift"][3].defaultValue
         }
       },
-      contrastSensitivity: {
+      lightEffect: {
         value: {
-          isActive: allUniforms["ContrastSensitivity"][0].defaultValue,
-          order: allUniforms["ContrastSensitivity"][1].defaultValue,
-          intensity: allUniforms["ContrastSensitivity"][2].defaultValue,
-        }
-      },
-      lightSensitivity: {
-        value: {
-          isActive: allUniforms["LightSensitivity"][0].defaultValue,
-          order: allUniforms["LightSensitivity"][1].defaultValue,
-          intensity: allUniforms["LightSensitivity"][2].defaultValue,
-        }
-      },
-      fovReduction: {
-        value: {
-          isActive: allUniforms["FovReduction"][0].defaultValue,
-          order: allUniforms["FovReduction"][1].defaultValue,
-          fov: allUniforms["FovReduction"][2].defaultValue
-        }
-      },
-      infilling: {
-        value: {
-          isActive: allUniforms["Infilling"][0].defaultValue,
-          order: allUniforms["Infilling"][1].defaultValue,
-          eccentricity: allUniforms["Infilling"][2].defaultValue,
-          halfMeredian: allUniforms["Infilling"][3].defaultValue,
-          infillSize: allUniforms["Infilling"][4].defaultValue
-        }
-      },
-      lightDegradation: {
-        value: {
-          isActive: allUniforms["LightDegradation"][0].defaultValue,
-          order: allUniforms["LightDegradation"][1].defaultValue,
-          eccentricity: allUniforms["LightDegradation"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["LightDegradation"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["LightDegradation"][4].defaultValue.map((x) => x),
-          omega: allUniforms["LightDegradation"][5].defaultValue.map((x) => x)
-        }
-      },
-      rotationDistortion: {
-        value: {
-          isActive: allUniforms["RotationDistortion"][0].defaultValue,
-          order: allUniforms["RotationDistortion"][1].defaultValue,
-          eccentricity: allUniforms["RotationDistortion"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["RotationDistortion"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["RotationDistortion"][4].defaultValue.map((x) => x),
-          omega: allUniforms["RotationDistortion"][5].defaultValue.map((x) => x)
-        }
-      },
-      spatialDistortion: {
-        value: {
-          isActive: allUniforms["SpatialDistortion"][0].defaultValue,
-          order: allUniforms["SpatialDistortion"][1].defaultValue,
-          eccentricity: allUniforms["SpatialDistortion"][2].defaultValue.map((x) => x),
-          halfMeredian: allUniforms["SpatialDistortion"][3].defaultValue.map((x) => x),
-          sigma: allUniforms["SpatialDistortion"][4].defaultValue.map((x) => x),
-          omega: allUniforms["SpatialDistortion"][5].defaultValue.map((x) => x)
+          isActive: allUniforms["LightEffect"][0].defaultValue,
+          order: allUniforms["LightEffect"][1].defaultValue,          
+          intensity: allUniforms["LightEffect"][2].defaultValue,
         }
       },
       visualAcuityLoss: {
@@ -1346,10 +1171,18 @@ async function loadDefault360Image() {
     `,
     fragmentShader: shaderCode
   });
-  sphereMesh = new THREE.Mesh(geometry, material);
-  scene.add(sphereMesh);
 
-  updateCameraAndRenderer(element360.videoWidth, element360.videoHeight);
+     const geometry = new THREE.SphereGeometry(500, 60, 40);
+
+     sphereMesh = new THREE.Mesh(geometry, material);
+     scene.add(sphereMesh);
+      updateCameraAndRenderer(texture.image.width, texture.image.height);
+    },
+    undefined,
+    (error) => {
+      console.error('An error occurred while loading the default texture:', error);
+    }
+  );
 }
 
 function buildUniform(name, keys) {
@@ -1366,7 +1199,7 @@ function buildUniform(name, keys) {
 async function loadDefaultImage() {
   const loader = new THREE.TextureLoader();
   loader.load(
-    'default.jpg',
+    'images/default.jpg',
     (tex) => {
       texture = tex;
 
