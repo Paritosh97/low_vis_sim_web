@@ -10,31 +10,34 @@ uniform int circleEccStep;
 
 struct ColorShift {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 0
+    int order;  // min: 0 max: 2 default: 0
     float severity;  // min: 0.0 max: 100.0 default: 50.0
     int cvdType;     // dropdown: (Protanomaly, Deuteranomaly, Tritanomaly)
 };
 
 struct LightEffect {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 2
+    int order;  // min: 0 max: 2 default: 1
+    bool autoDayNight; // min: false max: true default: false
+    bool isNight; // min: false max: true default: false
+    float sigmaS; // min: 0.0 max: 10.0 default: 1.0
+    float sigmaL; // min: 0.0 max: 10.0 default: 1.0
+    float threshold; // min: 0.0 max: 1.0 default: 0.5
+    float haloSize; // min: 0.0 max: 1.0 default: 0.1
     float intensity; // min: 0.0 max: 5.0 default: 1.0
 };
 
-struct VisualAcuityLoss {
+struct TunnelVision {
     bool isActive;  // min: false max: true default: false
-    int order;  // min: 0 max: 8 default: 8
-    bool mipMapping; // min: false max: true default: false
-    int lossType; // dropdown: (Complete, Tunnel, Tunnel - Internal Sampling)
-    float size; // min: 0.0 max: 1.0 default: 0.2
-    float sigma; // min: 0.0 max: 15.0 default: 3.0
+    int order;  // min: 0 max: 2 default: 2
+    float size; // min: 0.0 max: 110.0 default: 10.0
     float edge_smoothness; // min: 0.0 max:0.05 default: 0.02
 };
 
 // Uniform instances
 uniform ColorShift colorShift;
 uniform LightEffect lightEffect;
-uniform VisualAcuityLoss visualAcuityLoss;
+uniform TunnelVision tunnelVision;
 
 // Utility functions
 float gaussian(vec2 p, vec2 mu, float sigma) {
@@ -47,10 +50,15 @@ float luminance(vec3 color) {
     return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
-vec2 rotate(vec2 p, float angle) {
-    float s = sin(angle);
-    float c = cos(angle);
-    return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+bool isNight(vec3 color, LightEffect le) {
+    if (!le.autoDayNight) return le.isNight;
+
+    float l = luminance(color);
+    if (l < le.threshold) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 vec2 perimetricToCartesian(vec2 perimetric) {
@@ -64,6 +72,69 @@ vec2 perimetricToCartesian(vec2 perimetric) {
     cartesian = cartesian + 0.5;
 
     return cartesian;
+}
+
+
+vec3 applyGaussianBlur(vec2 uv, float sigma, bool mipMapping) {
+    float weightSum = 0.0;
+    vec3 blurredSum = vec3(0.0);
+
+    const int LOD = 2; // Adjust as needed
+    int radius = int(ceil(sigma));
+
+    vec2 texelSize = 1.0 / uResolution.xy;
+    
+    for (int y = -radius; y <= radius; ++y) {
+        for (int x = -radius; x <= radius; ++x) {
+            vec2 offset = vec2(x, y);
+            float g = gaussian(offset, vec2(0.0), sigma);
+            vec2 sampleUV = clamp(uv + offset * texelSize, texelSize, 1.0 - texelSize);
+
+            vec3 sampledColor = mipMapping
+                ? textureLod(uImage, sampleUV, float(LOD)).rgb
+                : texture(uImage, sampleUV).rgb;
+
+            blurredSum += sampledColor * g;
+            weightSum += g;
+        }
+    }
+
+    return (weightSum > 0.0) ? blurredSum / weightSum : vec3(0.0);
+}
+
+
+void bilateralFilter(inout vec2 uv, inout vec4 color, float sigma_S, float sigma_L) {
+    float sigS = max(sigma_S, 1e-5);
+    float sigL = max(sigma_L, 1e-5);
+
+    float facS = -1.0 / (2.0 * sigS * sigS);
+    float facL = -1.0 / (2.0 * sigL * sigL);
+
+    float sumW = 0.0;
+    vec4 sumC = vec4(0.0);
+    float halfSize = 4.0;
+    vec2 textureSize = 1.0 / uResolution.xy;
+
+    float l = luminance(color.rgb);
+
+    for (float j = -halfSize; j <= halfSize; j++) {
+        for (float k = -halfSize; k <= halfSize; k++) {
+            vec2 pos = vec2(j, k);
+            vec4 offsetColor = textureLod(uImage, uv + pos * textureSize, 2.0);
+
+            float distS = length(pos);
+            float distL = luminance(offsetColor.rgb) - l;
+
+            float wS = exp(facS * distS * distS);
+            float wL = exp(facL * distL * distL);
+            float w = wS * wL;
+
+            sumW += w;
+            sumC += offsetColor * w;
+        }
+    }
+
+    color = vec4(sumC.rgb / sumW, 1.0);
 }
 
 // Effect functions
@@ -137,171 +208,118 @@ void applyColorShift(inout vec2 uv, inout vec4 color, ColorShift cs) {
     color.rgb =  clamp(lin, 0.0, 1.0) * 255.0;
 }
 
-void applyMipBloom(inout vec2 uv, inout vec4 color, float bloomStrength) {
-    float threshold = 1.0;
-
-    // Extract bright areas from base level
+vec3 dayEffect(inout vec2 uv, vec3 color, LightEffect le) {
     vec3 baseColor = color.rgb;
     float l = luminance(baseColor);
-    vec3 highlight = l > threshold ? baseColor : vec3(0.0);
+
+    // Extract bright areas
+    vec3 highlight = l > le.threshold ? baseColor : vec3(0.0);
+
+    // Apply Gaussian blur to the bright areas to create a halo
+    vec3 halo = applyGaussianBlur(uv, le.haloSize, true) * highlight;
 
     // Sample from lower MIP levels to simulate blur
     vec3 mip1 = textureLod(uImage, uv, 1.0).rgb;
     vec3 mip2 = textureLod(uImage, uv, 2.0).rgb;
     vec3 mip3 = textureLod(uImage, uv, 3.0).rgb;
 
-    // Combine with weights
-    vec3 bloom = highlight * 0.4 + mip1 * 0.3 + mip2 * 0.2 + mip3 * 0.1;
+    // Combine halo with mip levels
+    vec3 bloom = halo * 0.4 + mip1 * 0.3 + mip2 * 0.2 + mip3 * 0.1;
 
     // Add bloom to final color
-    color = vec4(baseColor + bloom * bloomStrength, 1.0);
+    return baseColor + bloom * le.intensity;
+}
+
+float applyThreshold(float value, float threshold) {
+    return value > threshold ? 1.0 : 0.0;
+}
+
+vec3 nightEffect(vec2 uv, vec3 color, LightEffect le) {
+    // Convert to grayscale
+    float gray = luminance(color);
+
+    // Apply threshold to identify bright areas
+    float lightAreas = applyThreshold(gray, le.threshold);
+
+    vec3 halo = vec3(lightAreas);
+    vec3 blurredHalo = applyGaussianBlur(uv, le.haloSize, false);
+
+    // Weighted addition of the original image and the halo
+    vec3 darkened = mix(color * 0.3, blurredHalo, 1.0);
+
+    // Apply final Gaussian blur to the entire image
+    vec3 finalBlur = applyGaussianBlur(uv, 3.0, false);
+
+    return finalBlur;
 }
 
 void applyLightEffect(inout vec2 uv, inout vec4 color, LightEffect le) {
-    if (!le.isActive) return;
+     if (!le.isActive) return;
 
-    color.rgb *= vec3(le.intensity);
+     bool isNight = isNight(color.rgb, le);
+
+    if (isNight) {
+        color.rgb = nightEffect(uv, color.rgb, le);
+    } else {
+        color.rgb = dayEffect(uv, color.rgb, le);
+    }
+
+    bilateralFilter(uv, color, le.sigmaS, le.sigmaL);
 }
 
-vec3 applyGaussianBlur(vec2 uv, float sigma, bool mipMapping) {
-    float weightSum = 0.0;
-    vec3 blurredSum = vec3(0.0);
+// Function to get the average color of the screen
+vec3 getScreenAverageColor(vec2 texelSize, sampler2D tex) {
+    vec3 sum = vec3(0.0);
+    int sampleCount = 0;
 
-    const int LOD = 2; // Adjust as needed
-    int radius = int(ceil(sigma));
+    const int gridSize = 4;
 
-    vec2 texelSize = 1.0 / uResolution.xy;
-    
-    for (int y = -radius; y <= radius; ++y) {
-        for (int x = -radius; x <= radius; ++x) {
-            vec2 offset = vec2(x, y);
-            float g = gaussian(offset, vec2(0.0), sigma);
-            vec2 sampleUV = clamp(uv + offset * texelSize, texelSize, 1.0 - texelSize);
-
-            vec3 sampledColor = mipMapping
-                ? textureLod(uImage, sampleUV, float(LOD)).rgb
-                : texture(uImage, sampleUV).rgb;
-
-            blurredSum += sampledColor * g;
-            weightSum += g;
+    for (int y = 0; y < gridSize; ++y) {
+        for (int x = 0; x < gridSize; ++x) {
+            vec2 uv = vec2((float(x) + 0.5) / float(gridSize), (float(y) + 0.5) / float(gridSize));
+            sum += textureLod(tex, uv, 1.0).rgb;
+            sampleCount++;
         }
     }
 
-    return (weightSum > 0.0) ? blurredSum / weightSum : vec3(0.0);
+    return sum / float(sampleCount);
 }
 
-
-void bilateralFilter(inout vec2 uv, inout vec4 color, float sigma_S, float sigma_L) {
-    float sigS = max(sigma_S, 1e-5);
-    float sigL = max(sigma_L, 1e-5);
-
-    float facS = -1.0 / (2.0 * sigS * sigS);
-    float facL = -1.0 / (2.0 * sigL * sigL);
-
-    float sumW = 0.0;
-    vec4 sumC = vec4(0.0);
-    float halfSize = 4.0;
-    vec2 textureSize = 1.0 / uResolution.xy;
-
-    float l = luminance(color.rgb);
-
-    for (float j = -halfSize; j <= halfSize; j++) {
-        for (float k = -halfSize; k <= halfSize; k++) {
-            vec2 pos = vec2(j, k);
-            vec4 offsetColor = textureLod(uImage, uv + pos * textureSize, 2.0);
-
-            float distS = length(pos);
-            float distL = luminance(offsetColor.rgb) - l;
-
-            float wS = exp(facS * distS * distS);
-            float wL = exp(facL * distL * distL);
-            float w = wS * wL;
-
-            sumW += w;
-            sumC += offsetColor * w;
-        }
-    }
-
-    color = vec4(sumC.rgb / sumW, 1.0);
+// Helper function to generate random noise
+float rand(vec2 co) {
+    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
-vec3 applyReduced2TunnelBlur(vec2 uv, float radius, vec4 color, float sigma, bool mipMapping, float edge_smoothness) {
-    vec2 center = vec2(0.5);
-
-    // Use aspect-corrected UV only for distance calculation (to get perfect circle)
-    vec2 aspectCorrectedUV = uv - center;
-    aspectCorrectedUV.x *= uResolution.x / uResolution.y;  
-    float dist = length(aspectCorrectedUV);
-
-    // Soft edge blending range
-    float innerRadius = radius - edge_smoothness;
-    float outerRadius = radius + edge_smoothness;
-
-    // If completely inside the circle, return the original color
-    if (dist < innerRadius) {
-        return color.rgb;
-    }
-
-    vec2 direction = normalize(uv - center);
-
-    //vec2 magnifiedUV = center + direction * (dist * radius) / (uResolution.x / uResolution.y) ;
-    vec2 magnifiedUV = center + (uv - center) * radius;
-    
-    vec3 magnifiedBlurredColor = applyGaussianBlur(magnifiedUV, sigma, mipMapping);
-
-    // Smooth blend based on distance
-    float blend = smoothstep(innerRadius, outerRadius, dist);
-    return mix(color.rgb, magnifiedBlurredColor, blend);
-}
-
-void applyVisualAcuityLoss(inout vec2 uv, inout vec4 color, VisualAcuityLoss val) {
-    if (!val.isActive) return;
+void applyTunnelVision(inout vec2 uv, inout vec4 color, TunnelVision tv) {
+    if (!tv.isActive) return;
 
     vec3 originalColor = color.rgb;
-    vec3 finalColor = originalColor;
+    vec2 center = vec2(0.5, 0.5);
 
-    if (val.lossType == 0) {
-        // Complete
-        float sigma = val.sigma;
-        finalColor = applyGaussianBlur(uv, sigma, val.mipMapping);
+    // Compute screen-space radius from center corresponding to `tv.size` degrees
+    float angleInRadians = radians(tv.size);
+    vec2 boundaryPoint = perimetricToCartesian(vec2(angleInRadians, 0.0));
+    float tunnelRadius = distance(center, boundaryPoint);
 
-    } else if (val.lossType == 1) {
-        vec2 center = vec2(0.5);
+    vec2 aspectCorrectedUV = uv - 0.5;
+    aspectCorrectedUV.x *= uResolution.x / uResolution.y;
+    aspectCorrectedUV += 0.5;
 
-        // Correct UV coordinates for aspect ratio
-        vec2 aspectCorrectedUV = uv - 0.5;  // Move to range [-0.5, 0.5]
-        aspectCorrectedUV.x *= uResolution.x / uResolution.y;  // Correct the X-axis based on aspect ratio
-        aspectCorrectedUV += 0.5;  // Move back to range [0, 1]
+    // Get current fragment’s distance from center (no aspect correction)
+    float dist = distance(aspectCorrectedUV, center);
 
-        float dist = distance(aspectCorrectedUV, center);
-        float radius = val.size;
+    // Smooth blend from visible to static outside radius
+    float edgeStart = tunnelRadius - tv.edge_smoothness * 0.5;
+    float edgeEnd = tunnelRadius + tv.edge_smoothness * 0.5;
+    float staticFactor = smoothstep(edgeStart, edgeEnd, dist);
 
-        // Use a smoother step function for gradual transition
-        float edgeWidth = 0.05;  // Adjust this value for the smoothness of the boundary
-        float blurFactor = smoothstep(radius - edgeWidth, radius + edgeWidth, dist);
+    // Static effect based on average center color + noise
+    vec3 centerColor = getScreenAverageColor(1.0 / uResolution, uImage);
+    float noise = rand(uv * 10.0);
+    vec3 staticColor = centerColor * noise;
 
-        // Calculate sigma based on the blur factor
-        float maxSigma = val.sigma;
-        float sigma = mix(0.0, maxSigma, blurFactor);
-
-        // Apply blur if sigma is greater than a threshold
-        if (sigma >= 0.001) {
-            vec3 blurredColor = applyGaussianBlur(uv, sigma, val.mipMapping);
-            finalColor = mix(originalColor, blurredColor, blurFactor);
-        }
-
-    } else if (val.lossType == 2) {
-        // Reduced-Tunnel
-        float radius = val.size;
-        float sigma = val.sigma;
-
-
-        // Apply the reduced tunnel blur
-        finalColor = applyReduced2TunnelBlur(uv, radius, color, sigma, val.mipMapping, val.edge_smoothness);
-    }
-
-    color.rgb = finalColor;
-    return;
+    // Blend
+    color = vec4(mix(originalColor, staticColor, staticFactor), 1.0);
 }
 
 void main() {
@@ -314,7 +332,7 @@ void main() {
     Effect effects[3] = Effect[3](
         Effect(colorShift.order, 0),
         Effect(lightEffect.order, 1),
-        Effect(visualAcuityLoss.order, 2)
+        Effect(tunnelVision.order, 2)
     );
 
     for (int i = 0; i < 3; i++) {
@@ -337,11 +355,11 @@ void main() {
         if (effectType == 0) {    
             applyColorShift(uv, color, colorShift);            
         }
-        else if (effectType == 2) {
+        else if (effectType == 1) {
             applyLightEffect(uv, color, lightEffect);
         }
-        else if (effectType == 8) {
-            applyVisualAcuityLoss(uv, color, visualAcuityLoss);
+        else if (effectType == 2) {
+            applyTunnelVision(uv, color, tunnelVision);
         }
     }
 

@@ -874,18 +874,21 @@ function updateEffects() {
   if (uniforms.lightEffect) {
     uniforms.lightEffect.value.isActive = allUniforms["LightEffect"][0].value;
     uniforms.lightEffect.value.order = allUniforms["LightEffect"][1].value;
-    uniforms.lightEffect.value.intensity = allUniforms["LightEffect"][2].value;
+    uniforms.lightEffect.value.autoDayNight = allUniforms["LightEffect"][2].value;
+    uniforms.lightEffect.value.isNight = allUniforms["LightEffect"][3].value;
+    uniforms.lightEffect.value.sigmaS = allUniforms["LightEffect"][4].value;
+    uniforms.lightEffect.value.sigmaL = allUniforms["LightEffect"][5].value;
+    uniforms.lightEffect.value.threshold = allUniforms["LightEffect"][6].value;
+    uniforms.lightEffect.value.haloSize = allUniforms["LightEffect"][7].value;
+    uniforms.lightEffect.value.intensity = allUniforms["LightEffect"][8].value;
   }
 
-  // Update VisualAcuityLoss uniform
-  if (uniforms.visualAcuityLoss) {
-    uniforms.visualAcuityLoss.value.isActive = allUniforms["VisualAcuityLoss"][0].value;
-    uniforms.visualAcuityLoss.value.order = allUniforms["VisualAcuityLoss"][1].value;
-    uniforms.visualAcuityLoss.value.mipMapping = allUniforms["VisualAcuityLoss"][2].value;
-    uniforms.visualAcuityLoss.value.lossType = allUniforms["VisualAcuityLoss"][3].value;
-    uniforms.visualAcuityLoss.value.size = allUniforms["VisualAcuityLoss"][4].value;
-    uniforms.visualAcuityLoss.value.sigma = allUniforms["VisualAcuityLoss"][5].value;
-    uniforms.visualAcuityLoss.value.edge_smoothness = allUniforms["VisualAcuityLoss"][6].value;
+  // Update TunnelVision uniform
+  if (uniforms.tunnelVision) {
+    uniforms.tunnelVision.value.isActive = allUniforms["TunnelVision"][0].value;
+    uniforms.tunnelVision.value.order = allUniforms["TunnelVision"][1].value;
+    uniforms.tunnelVision.value.size = allUniforms["TunnelVision"][2].value;
+    uniforms.tunnelVision.value.edge_smoothness = allUniforms["TunnelVision"][3].value;
   }
 
   // Update ShowCircles uniform
@@ -1019,35 +1022,48 @@ function setupEventListeners() {
 }
 
 function createPlane(texture) {
-
   const availWidth = window.innerWidth - SIDEBAR_WIDTH;
   const availHeight = window.innerHeight;
 
   const windowAspectRatio = availWidth / availHeight;
-
-  const imageWidth = texture.image.width;
-  const imageHeight = texture.image.height;
-
-  const imageAspectRatio = imageWidth / imageHeight;
+  const imageAspectRatio = texture.image.width / texture.image.height;
 
   let W, H;
-
-  // Adjust the plane size based on the image aspect ratio
   if (imageAspectRatio > windowAspectRatio) {
     W = 2;
     H = 2 * windowAspectRatio / imageAspectRatio;
   } else {
-    // Image is taller than window
     W = 2 * imageAspectRatio / windowAspectRatio;
     H = 2;
   }
 
   const geometry = new THREE.PlaneGeometry(W, H);
+  const material = createCommonShaderMaterial(
+    texture,
+    new THREE.Vector2(texture.image.width, texture.image.height)
+  );
 
-  const material = new THREE.ShaderMaterial({
+  // Override the material side and vertex shader for plane
+  material.side = THREE.FrontSide;
+  material.vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position, 1.0);
+    }
+  `;
+  material.needsUpdate = true;
+
+  return new THREE.Mesh(geometry, material);
+}
+
+
+function createCommonShaderMaterial(texture, resolution) {
+  return new THREE.ShaderMaterial({
+    side: THREE.BackSide, // Will override if needed for plane
     uniforms: {
       uImage: { value: texture },
-      uResolution: { value: new THREE.Vector2(imageWidth, imageHeight) },
+      uResolution: { value: resolution },
       showCircles: { value: false },
       circleEccStep: { value: 10 },
       colorShift: {
@@ -1061,19 +1077,22 @@ function createPlane(texture) {
       lightEffect: {
         value: {
           isActive: allUniforms["LightEffect"][0].defaultValue,
-          order: allUniforms["LightEffect"][1].defaultValue,          
-          intensity: allUniforms["LightEffect"][2].defaultValue,
+          order: allUniforms["LightEffect"][1].defaultValue,
+          autoDayNight: allUniforms["LightEffect"][2].defaultValue,
+          isNight: allUniforms["LightEffect"][3].defaultValue,
+          sigmaS: allUniforms["LightEffect"][4].defaultValue,
+          sigmaL: allUniforms["LightEffect"][5].defaultValue,
+          threshold: allUniforms["LightEffect"][6].defaultValue,
+          haloSize: allUniforms["LightEffect"][7].defaultValue,
+          intensity: allUniforms["LightEffect"][8].defaultValue,
         }
       },
-      visualAcuityLoss: {
+      tunnelVision: {
         value: {
-          isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
-          order: allUniforms["VisualAcuityLoss"][1].defaultValue,
-          mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
-          size: allUniforms["VisualAcuityLoss"][4].defaultValue,
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue,
-          edge_smoothness: allUniforms["VisualAcuityLoss"][6].defaultValue
+          isActive: allUniforms["TunnelVision"][0].defaultValue,
+          order: allUniforms["TunnelVision"][1].defaultValue,
+          size: allUniforms["TunnelVision"][2].defaultValue,
+          edge_smoothness: allUniforms["TunnelVision"][3].defaultValue
         }
       }
     },
@@ -1081,14 +1100,15 @@ function createPlane(texture) {
       varying vec2 vUv;
       void main() {
         vUv = uv;
-        gl_Position = vec4( position, 1.0 );
+        gl_Position = ${resolution === undefined ? 
+          "projectionMatrix * modelViewMatrix * vec4(position, 1.0)" : 
+          "vec4(position, 1.0)"};
       }
     `,
     fragmentShader: shaderCode
   });
-
-  return new THREE.Mesh(geometry, material);
 }
+
 
 function loadImage(file) {
   const loader = new THREE.TextureLoader();
@@ -1117,7 +1137,6 @@ function loadImage(file) {
 }
 
 function loadDefault360Image() {
-
   const loader = new THREE.TextureLoader();
   loader.load(
     'images/default360.jpg',
@@ -1128,54 +1147,15 @@ function loadDefault360Image() {
         scene.remove(sphereMesh);
       }
 
-    const material = new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    uniforms: {
-      uImage: { value: texture360 },
-      uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-      showCircles: { value: false },
-      circleEccStep: { value: 10 },
-      colorShift: {
-        value: {
-          isActive: allUniforms["ColorShift"][0].defaultValue,
-          order: allUniforms["ColorShift"][1].defaultValue,
-          severity: allUniforms["ColorShift"][2].defaultValue,
-          cvdType: allUniforms["ColorShift"][3].defaultValue
-        }
-      },
-      lightEffect: {
-        value: {
-          isActive: allUniforms["LightEffect"][0].defaultValue,
-          order: allUniforms["LightEffect"][1].defaultValue,          
-          intensity: allUniforms["LightEffect"][2].defaultValue,
-        }
-      },
-      visualAcuityLoss: {
-        value: {
-          isActive: allUniforms["VisualAcuityLoss"][0].defaultValue,
-          order: allUniforms["VisualAcuityLoss"][1].defaultValue,
-          mipMapping: allUniforms["VisualAcuityLoss"][2].defaultValue,
-          lossType: allUniforms["VisualAcuityLoss"][3].defaultValue,
-          size: allUniforms["VisualAcuityLoss"][4].defaultValue,
-          sigma: allUniforms["VisualAcuityLoss"][5].defaultValue,
-          edge_smoothness: allUniforms["VisualAcuityLoss"][6].defaultValue
-        }
-      }
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: shaderCode
-  });
+      const material = createCommonShaderMaterial(
+        texture,
+        new THREE.Vector2(window.innerWidth, window.innerHeight)
+      );
 
-     const geometry = new THREE.SphereGeometry(500, 60, 40);
+      const geometry = new THREE.SphereGeometry(500, 60, 40);
+      sphereMesh = new THREE.Mesh(geometry, material);
+      scene.add(sphereMesh);
 
-     sphereMesh = new THREE.Mesh(geometry, material);
-     scene.add(sphereMesh);
       updateCameraAndRenderer(texture.image.width, texture.image.height);
     },
     undefined,
@@ -1184,6 +1164,7 @@ function loadDefault360Image() {
     }
   );
 }
+
 
 function buildUniform(name, keys) {
   const values = allUniforms[name];
