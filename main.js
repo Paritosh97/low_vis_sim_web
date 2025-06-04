@@ -15,7 +15,7 @@ let camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 let imageMesh;
 let texture;
 let shaderCode = null;
-let allUniforms = null;
+let allEffectUniforms = null;
 
 let showCirclesState = false;
 let is360Mode = false;
@@ -30,7 +30,7 @@ async function init() {
   try {
     // Load shader code and parse uniforms
     shaderCode = await fetch(`effects/shader.glsl`).then(r => r.text());
-    allUniforms = parseShaderUniforms(shaderCode);
+    allEffectUniforms = parseShaderUniforms(shaderCode);
 
     // Build the UI
     buildUI();
@@ -282,7 +282,7 @@ async function buildUI() {
   const disabled = [];
 
   // Split effects into enabled and disabled arrays
-  for (const [name, uniforms] of Object.entries(allUniforms)) {
+  for (const [name, uniforms] of Object.entries(allEffectUniforms)) {
       if (uniforms[0].value) enabled.push([name, uniforms]);
       else disabled.push([name, uniforms]);
   }
@@ -445,7 +445,7 @@ function createMoveControls(name) {
   const moveControls = document.createElement('div');
   moveControls.className = 'move-controls';
 
-  const activeEffects = Object.entries(allUniforms)
+  const activeEffects = Object.entries(allEffectUniforms)
     .filter(([_, uniforms]) => uniforms[0].value)
     .sort((a, b) => a[1][1].value - b[1][1].value);
 
@@ -482,7 +482,7 @@ function createMoveButton(label, direction, onClick) {
 }
 
 function moveEffect(name, direction) {
-  const activeEffects = Object.entries(allUniforms)
+  const activeEffects = Object.entries(allEffectUniforms)
     .filter(([_, uniforms]) => uniforms[0].value) // Filter only enabled effects
     .sort((a, b) => a[1][1].value - b[1][1].value); // Sort by order value
 
@@ -859,36 +859,16 @@ function updateEffects() {
   if (!imageMesh && !sphereMesh) return;
 
   const uniforms = (imageMesh ? imageMesh.material.uniforms : sphereMesh.material.uniforms);
-
   if (!uniforms) return;
-  
-  // Update ColorShift uniform
-  if (uniforms.colorShift) {
-    uniforms.colorShift.value.isActive = allUniforms["ColorShift"][0].value;
-    uniforms.colorShift.value.order = allUniforms["ColorShift"][1].value;
-    uniforms.colorShift.value.severity = allUniforms["ColorShift"][2].value;
-    uniforms.colorShift.value.cvdType = allUniforms["ColorShift"][3].value;
-  }
 
-  // Update LightEffect uniform
-  if (uniforms.lightEffect) {
-    uniforms.lightEffect.value.isActive = allUniforms["LightEffect"][0].value;
-    uniforms.lightEffect.value.order = allUniforms["LightEffect"][1].value;
-    uniforms.lightEffect.value.autoDayNight = allUniforms["LightEffect"][2].value;
-    uniforms.lightEffect.value.isNight = allUniforms["LightEffect"][3].value;
-    uniforms.lightEffect.value.sigmaS = allUniforms["LightEffect"][4].value;
-    uniforms.lightEffect.value.sigmaL = allUniforms["LightEffect"][5].value;
-    uniforms.lightEffect.value.threshold = allUniforms["LightEffect"][6].value;
-    uniforms.lightEffect.value.haloSize = allUniforms["LightEffect"][7].value;
-    uniforms.lightEffect.value.intensity = allUniforms["LightEffect"][8].value;
-  }
+  for (const effectName in allEffectUniforms) {
+    const uniformKey = effectName.charAt(0).toLowerCase() + effectName.slice(1);
+    if (!uniforms[uniformKey]) continue;
 
-  // Update TunnelVision uniform
-  if (uniforms.tunnelVision) {
-    uniforms.tunnelVision.value.isActive = allUniforms["TunnelVision"][0].value;
-    uniforms.tunnelVision.value.order = allUniforms["TunnelVision"][1].value;
-    uniforms.tunnelVision.value.size = allUniforms["TunnelVision"][2].value;
-    uniforms.tunnelVision.value.edge_smoothness = allUniforms["TunnelVision"][3].value;
+    const effectParams = allEffectUniforms[effectName];
+    for (const param of effectParams) {
+      uniforms[uniformKey].value[param.name] = param.value;
+    }
   }
 
   // Update ShowCircles uniform
@@ -982,7 +962,7 @@ function setupEventListeners() {
   // Export configuration
   document.getElementById('exportBtn').addEventListener('click', () => {
     const config = {
-      effects: allUniforms,
+      effects: allEffectUniforms,
       // Add other configuration data as needed
     };
 
@@ -1003,7 +983,7 @@ function setupEventListeners() {
     reader.onload = async () => {
       try {
         const data = JSON.parse(reader.result);
-        allUniforms = data.effects;
+        allEffectUniforms = data.effects;
         // Rebuild UI and processing pipeline
         await buildUI();
         updateEffects();
@@ -1057,45 +1037,27 @@ function createPlane(texture) {
   return new THREE.Mesh(geometry, material);
 }
 
-
 function createCommonShaderMaterial(texture, resolution) {
+  console.log(allEffectUniforms);
+
+  const uniforms = {
+    uImage: { value: texture },
+    uResolution: { value: resolution },
+    showCircles: { value: false },
+    circleEccStep: { value: 10 }
+  };
+
+  for (const effectName in allEffectUniforms) {
+    const effectParams = {};
+    for (const param of allEffectUniforms[effectName]) {
+      effectParams[param.name] = param.defaultValue;
+    }
+    uniforms[effectName.charAt(0).toLowerCase() + effectName.slice(1)] = { value: effectParams };
+  }
+
   return new THREE.ShaderMaterial({
-    side: THREE.BackSide, // Will override if needed for plane
-    uniforms: {
-      uImage: { value: texture },
-      uResolution: { value: resolution },
-      showCircles: { value: false },
-      circleEccStep: { value: 10 },
-      colorShift: {
-        value: {
-          isActive: allUniforms["ColorShift"][0].defaultValue,
-          order: allUniforms["ColorShift"][1].defaultValue,
-          severity: allUniforms["ColorShift"][2].defaultValue,
-          cvdType: allUniforms["ColorShift"][3].defaultValue
-        }
-      },
-      lightEffect: {
-        value: {
-          isActive: allUniforms["LightEffect"][0].defaultValue,
-          order: allUniforms["LightEffect"][1].defaultValue,
-          autoDayNight: allUniforms["LightEffect"][2].defaultValue,
-          isNight: allUniforms["LightEffect"][3].defaultValue,
-          sigmaS: allUniforms["LightEffect"][4].defaultValue,
-          sigmaL: allUniforms["LightEffect"][5].defaultValue,
-          threshold: allUniforms["LightEffect"][6].defaultValue,
-          haloSize: allUniforms["LightEffect"][7].defaultValue,
-          intensity: allUniforms["LightEffect"][8].defaultValue,
-        }
-      },
-      tunnelVision: {
-        value: {
-          isActive: allUniforms["TunnelVision"][0].defaultValue,
-          order: allUniforms["TunnelVision"][1].defaultValue,
-          size: allUniforms["TunnelVision"][2].defaultValue,
-          edge_smoothness: allUniforms["TunnelVision"][3].defaultValue
-        }
-      }
-    },
+    side: THREE.BackSide,
+    uniforms,
     vertexShader: `
       varying vec2 vUv;
       void main() {
@@ -1108,6 +1070,7 @@ function createCommonShaderMaterial(texture, resolution) {
     fragmentShader: shaderCode
   });
 }
+
 
 
 function loadImage(file) {
@@ -1167,7 +1130,7 @@ function loadDefault360Image() {
 
 
 function buildUniform(name, keys) {
-  const values = allUniforms[name];
+  const values = allEffectUniforms[name];
   const uniform = { isActive: values[0].defaultValue, order: values[1].defaultValue };
   keys.forEach((key, i) => {
     uniform[key] = Array.isArray(values[i + 2].defaultValue)
