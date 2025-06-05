@@ -103,7 +103,7 @@ vec3 applyGaussianBlur(vec2 uv, float sigma, bool mipMapping) {
 }
 
 
-void bilateralFilter(inout vec2 uv, inout vec4 color, float sigma_S, float sigma_L) {
+vec3 bilateralFilter(inout vec2 uv, vec3 color, float sigma_S, float sigma_L) {
     float sigS = max(sigma_S, 1e-5);
     float sigL = max(sigma_L, 1e-5);
 
@@ -134,7 +134,7 @@ void bilateralFilter(inout vec2 uv, inout vec4 color, float sigma_S, float sigma
         }
     }
 
-    color = vec4(sumC.rgb / sumW, 1.0);
+    return sumC.rgb / sumW;
 }
 
 // Effect functions
@@ -264,7 +264,11 @@ void applyLightEffect(inout vec2 uv, inout vec4 color, LightEffect le) {
         color.rgb = dayEffect(uv, color.rgb, le);
     }
 
-    bilateralFilter(uv, color, le.sigmaS, le.sigmaL);
+    // Apply bilateral filter to smooth the image while preserving edges
+    vec3 flat_color = bilateralFilter(uv, color.rgb, le.sigmaS, le.sigmaL);
+
+    // add two colors
+    color.rgb = mix(color.rgb, flat_color, 0.5);
 }
 
 // Function to get the average color of the screen

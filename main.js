@@ -1038,8 +1038,6 @@ function createPlane(texture) {
 }
 
 function createCommonShaderMaterial(texture, resolution) {
-  console.log(allEffectUniforms);
-
   const uniforms = {
     uImage: { value: texture },
     uResolution: { value: resolution },
